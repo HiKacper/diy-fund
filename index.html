@@ -3138,10 +3138,23 @@ function escapeHTML(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','
 render();
 window.addEventListener('resize', ()=>{ if(S.view==='home') render(); });
 
+// The service worker (offline caching) caused more grief than it was worth —
+// iOS installed-app storage doesn't always clear the same way regular Safari
+// does, which could leave a device stuck on an old cached version indefinitely
+// with no reliable way to force a refresh. The app needs internet anyway for
+// live prices, so offline support wasn't earning its keep. This actively finds
+// and removes any service worker + cache already installed from an earlier
+// version, so existing installs self-heal without the user needing to dig
+// through iOS Settings.
 if('serviceWorker' in navigator){
-  window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
-  });
+  navigator.serviceWorker.getRegistrations().then(regs=>{
+    regs.forEach(reg=>reg.unregister());
+  }).catch(()=>{});
+}
+if('caches' in window){
+  caches.keys().then(keys=>{
+    keys.forEach(key=>caches.delete(key));
+  }).catch(()=>{});
 }
 </script>
 </body>
