@@ -296,6 +296,7 @@
   .action-pill:active{background:var(--surface-2);}
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 </head>
 <body>
 <div id="app"></div>
@@ -325,7 +326,7 @@ const TONE_PROFILES = {
   },
   encouraging: {
     label: 'Encouraging',
-    instruction: "Lead with warmth — this is a safe space to learn, mistakes are expected and are how you actually get better at this, and she has every right to be here making these calls herself. Be affirming and upbeat, like a coach who's genuinely glad she's in the game. At the same time, stay straightforward and honest about risk and trade-offs — the reassurance is about the environment being safe, never about agreeing with a shaky plan just to be nice."
+    instruction: "Written for a younger reader (like a 13-year-old) — simple, short sentences, plain everyday words, no jargon. Lead with warmth: this is a safe space to learn, mistakes are expected and are how you actually get better at this. Be affirming and upbeat, like a coach who's genuinely glad she's in the game. At the same time, stay honest about risk and trade-offs — the reassurance is about the environment being safe, never about agreeing with a shaky plan just to be nice."
   },
   neutral: {
     label: 'Neutral',
@@ -338,26 +339,30 @@ const todayISO = () => new Date().toISOString().slice(0,10);
 const fmtEUR = (n) => (n<0?'-':'') + '€' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtPct = (n) => (n>0?'+':'') + n.toFixed(1) + '%';
 
-/* ---------------------------- State ---------------------------- */
-function loadState(){
-  try{
-    const raw = localStorage.getItem('ledgerState');
-    if(raw) return JSON.parse(raw);
-  }catch(e){}
-  return null;
-}
-function saveState(){
-  try{
-    localStorage.setItem('ledgerState', JSON.stringify(S));
-  }catch(e){
-    console.error('Save failed', e);
-    alert("Couldn't save that change — your browser's storage may be full or restricted (e.g. private browsing mode). The change may not persist after closing the app.");
-  }
-}
+/* ---------------------------- Supabase (real backend) ---------------------------- */
+// This app now stores everyone's data in Supabase instead of the browser's local
+// storage — meaning it's genuinely shared across every family member's own phone,
+// not a separate island per device. The publishable key below is meant to be
+// public (it's what every browser uses to talk to the database); the actual
+// access control — who can see what — is enforced by Row Level Security rules
+// on the database side, not by anything in this file.
+const SUPABASE_URL = 'https://gcgxqopkfwcqazpwrjlr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_Eo0ZwwFXX4NaQG26cxUrvw_wbTkz7Ma';
+const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-let S = loadState() || {
-  appPinSet:false, appPin:null,
-  unlocked:false,
+/* ---------------------------- State ---------------------------- */
+// Local state is now just a working copy of what's in Supabase — nothing here
+// is the "real" record of anything anymore. UI-only fields (view, range, drafts)
+// live only in memory and reset on reload, which is expected.
+function saveState(){ /* kept as a no-op so existing call sites don't need to be
+  hunted down one by one — actual persistence now happens via the dbSave*
+  functions, called explicitly at each real mutation point. */ }
+
+let S = {
+  session: null,          // current Supabase auth session, or null if signed out
+  myRole: null,           // 'admin' | 'family', resolved after sign-in
+  authError: null,
+  loading: true,          // true while the initial session check / data fetch is in flight
   profiles:[],
   activeProfileId:null,
   view:'home',
@@ -372,7 +377,156 @@ let S = loadState() || {
 
 function activeProfile(){ return S.profiles.find(p=>p.id===S.activeProfileId) || null; }
 
-/* ---------------------------- Domain math ---------------------------- */
+/* ---------------------------- Supabase data load/save ---------------------------- */
+// Converts the flat rows Supabase returns (profiles / assets / transactions as
+// separate tables) back into the nested shape the rest of this app already
+// expects (profile.assets = [...], profile.transactions = [...]) — this is what
+// lets every existing calculation function (positionsFor, portfolioTotals, tax,
+// charts, etc.) keep working completely unchanged.
+async function loadAllData(){
+  S.loading = true; render();
+  try{
+    const [profilesRes, assetsRes, txRes, settingsRes] = await Promise.all([
+      sb.from('profiles').select('*'),
+      sb.from('assets').select('*'),
+      sb.from('transactions').select('*'),
+      sb.from('app_settings').select('*').eq('id',1).maybeSingle(),
+    ]);
+    if(profilesRes.error) throw profilesRes.error;
+    if(assetsRes.error) throw assetsRes.error;
+    if(txRes.error) throw txRes.error;
+    if(settingsRes.error) throw settingsRes.error;
+    if(settingsRes.data){
+      S.exemptionAmount = settingsRes.data.exemption_amount || DEFAULT_EXEMPTION;
+      S.anthropicApiKey = settingsRes.data.anthropic_api_key || '';
+    }
+
+    const assetsByProfile = {};
+    (assetsRes.data||[]).forEach(a=>{
+      if(!assetsByProfile[a.profile_id]) assetsByProfile[a.profile_id]=[];
+      assetsByProfile[a.profile_id].push({
+        id:a.id, ticker:a.ticker, name:a.name, bucket:a.bucket, type:a.type,
+        reyndersPct:a.reynders_pct||0
+      });
+      // current price lives keyed by asset id, same shape the app already uses
+    });
+    const pricesByProfile = {};
+    (assetsRes.data||[]).forEach(a=>{
+      if(!pricesByProfile[a.profile_id]) pricesByProfile[a.profile_id]={};
+      if(a.current_price!=null){
+        pricesByProfile[a.profile_id][a.id] = {price:a.current_price, asOf:a.price_as_of, currency:'EUR'};
+      }
+    });
+    const txByProfile = {};
+    (txRes.data||[]).forEach(t=>{
+      if(!txByProfile[t.profile_id]) txByProfile[t.profile_id]=[];
+      txByProfile[t.profile_id].push({
+        id:t.id, date:t.date, type:t.type||'buy', bucket:t.bucket, assetId:t.asset_id,
+        amountEUR:t.amount_eur, priceAtBuy:t.price_at_buy, priceAtSell:t.price_at_sell,
+        units:t.units, fee:t.fee||0, reasoning:t.reasoning||'',
+        origCurrency:t.orig_currency||undefined, origAmount:t.orig_amount||undefined, fxRate:t.fx_rate||undefined
+      });
+    });
+
+    S.profiles = (profilesRes.data||[]).map(p=>({
+      id:p.id, name:p.name, tone:p.tone||'neutral', hidden:!!p.hidden,
+      plan:p.plan||null,
+      assets: assetsByProfile[p.id]||[],
+      transactions: txByProfile[p.id]||[],
+      prices: pricesByProfile[p.id]||{}
+    }));
+
+    if(!S.activeProfileId || !S.profiles.find(p=>p.id===S.activeProfileId)){
+      const firstVisible = S.profiles.find(p=>!p.hidden);
+      S.activeProfileId = firstVisible ? firstVisible.id : (S.profiles[0]?.id || null);
+    }
+  }catch(e){
+    console.error('loadAllData failed', e);
+    S.authError = "Couldn't load data from the server — check your connection and try reloading.";
+  }
+  S.loading = false;
+  render();
+}
+
+async function resolveRole(){
+  try{
+    const { data, error } = await sb.from('app_roles').select('role').maybeSingle();
+    if(error) throw error;
+    S.myRole = data ? data.role : 'family';
+  }catch(e){
+    console.error('resolveRole failed', e);
+    S.myRole = 'family';
+  }
+}
+
+async function dbInsertProfile(profile){
+  const { error } = await sb.from('profiles').insert({
+    id:profile.id, name:profile.name, tone:profile.tone||'neutral', hidden:!!profile.hidden, plan:profile.plan
+  });
+  if(error){ console.error('dbInsertProfile failed', error); alert("Couldn't save that account to the server — check your connection and try again."); }
+  return !error;
+}
+async function dbUpdateProfile(profile){
+  const { error } = await sb.from('profiles').update({
+    name:profile.name, tone:profile.tone, plan:profile.plan
+  }).eq('id', profile.id);
+  if(error){ console.error('dbUpdateProfile failed', error); }
+  return !error;
+}
+async function dbInsertAsset(profileId, asset){
+  const { error } = await sb.from('assets').insert({
+    id:asset.id, profile_id:profileId, ticker:asset.ticker, name:asset.name,
+    bucket:asset.bucket, type:asset.type, reynders_pct:asset.reyndersPct||0
+  });
+  if(error){ console.error('dbInsertAsset failed', error); alert("Couldn't save that asset to the server — check your connection and try again."); }
+  return !error;
+}
+async function dbUpdateAssetPrice(assetId, price, asOf){
+  const { error } = await sb.from('assets').update({ current_price:price, price_as_of:asOf }).eq('id', assetId);
+  if(error) console.error('dbUpdateAssetPrice failed', error);
+  return !error;
+}
+async function dbInsertTransaction(profileId, tx){
+  const { error } = await sb.from('transactions').insert({
+    id:tx.id, profile_id:profileId, asset_id:tx.assetId, date:tx.date, type:tx.type||'buy',
+    bucket:tx.bucket, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
+    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'',
+    orig_currency:tx.origCurrency||null, orig_amount:tx.origAmount||null, fx_rate:tx.fxRate||null
+  });
+  if(error){ console.error('dbInsertTransaction failed', error); alert("Couldn't save that transaction to the server — check your connection and try again."); }
+  return !error;
+}
+async function dbUpdateTransaction(tx){
+  const { error } = await sb.from('transactions').update({
+    date:tx.date, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
+    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||''
+  }).eq('id', tx.id);
+  if(error){ console.error('dbUpdateTransaction failed', error); alert("Couldn't save that correction to the server — check your connection and try again."); }
+  return !error;
+}
+async function dbDeleteTransaction(txId){
+  const { error } = await sb.from('transactions').delete().eq('id', txId);
+  if(error){ console.error('dbDeleteTransaction failed', error); alert("Couldn't delete that on the server — check your connection and try again."); }
+  return !error;
+}
+
+/* ---------------------------- Auth ---------------------------- */
+async function signIn(email, password){
+  S.authError = null;
+  const { data, error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){ S.authError = 'Incorrect email or password.'; render(); return false; }
+  S.session = data.session;
+  await resolveRole();
+  await loadAllData();
+  return true;
+}
+async function signOutNow(){
+  await sb.auth.signOut();
+  S.session = null; S.myRole = null; S.profiles = []; S.activeProfileId = null;
+  S.view = 'home';
+  render();
+}
+
 function bucketAmount(plan, bucketId){ return plan.buckets[bucketId] || 0; }
 
 function assetsFor(profile, bucketId){ return profile.assets.filter(a=>a.bucket===bucketId); }
@@ -617,14 +771,12 @@ function householdTaxSummary(includeHidden){
 const app = document.getElementById('app');
 
 function render(){
+  if(!S.session){ renderLoginScreen(false); return; }
+  if(S.loading){ renderLoadingScreen(); return; }
+  if(S.view==='switch-account'){ renderLoginScreen(true); return; }
   if(!S.profiles.length || S.setupStage){ renderOnboarding(); return; }
-  if(S.appPinSet && !S.unlocked){ renderPinLock(); return; }
-  if(S.view==='admin-pin-setup'){ renderAdminPinSetup(); return; }
-  if(S.view==='admin-pin-entry'){ renderAdminPinEntry(); return; }
-  if(S.view==='setapppin'){ renderSetAppPin(); return; }
-  if(S.view==='switchpin'){ renderSwitchPin(); return; }
   const p = activeProfile();
-  if(!p && S.activeProfileId!=='FAMILY' && S.activeProfileId!=='FAMILY_PLUS'){ S.activeProfileId = S.profiles.find(pr=>!pr.hidden)?.id || S.profiles[0].id; saveState(); }
+  if(!p && S.activeProfileId!=='FAMILY' && S.activeProfileId!=='FAMILY_PLUS'){ S.activeProfileId = S.profiles.find(pr=>!pr.hidden)?.id || S.profiles[0].id; }
   if(S.view!=='positions') S.historyEditMode = false; // leaving Assets always closes correcting mode
   // Every render redraws the whole screen from scratch, which otherwise resets
   // scroll to the top on every keystroke or toggle — fine for an actual
@@ -641,234 +793,55 @@ function isFamilyView(){ return S.activeProfileId==='FAMILY' || S.activeProfileI
 
 function h(strings, ...vals){ return strings.reduce((a,s,i)=>a+s+(vals[i]??''),''); }
 
-/* ---- PIN lock ---- */
-function renderPinLock(){
-  const entry = S.pinEntry||'';
+/* ---- Loading screen (while the initial session check / data fetch runs) ---- */
+function renderLoadingScreen(){
   app.innerHTML = `
     <div class="pin-screen">
       <div class="center-col">
-        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
-        <div class="pin-title">Enter PIN</div>
-      </div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
-      </div>
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
-        <button data-pin="clear" style="visibility:hidden"></button>
-        <button data-pin="0">0</button>
-        <button data-pin="back">⌫</button>
+        <div class="brand" style="justify-content:center;margin-bottom:14px;font-size:22px;"><span class="mark" style="width:34px;height:34px;"><i style="height:40%;width:5px"></i><i style="height:70%;width:5px"></i><i style="height:55%;width:5px"></i></span> DIY Fund</div>
+        <p class="hint">Loading…</p>
       </div>
     </div>`;
-  app.querySelectorAll('[data-pin]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const k = btn.dataset.pin;
-      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
-      if(entry.length>=4) return;
-      const next = entry+k;
-      S.pinEntry = next;
-      if(next.length===4){
-        if(next===S.appPin){ S.unlocked=true; S.pinEntry=''; saveState(); render(); }
-        else { setTimeout(()=>{ S.pinEntry=''; render(); }, 350); render(); }
-      } else render();
-    };
-  });
 }
 
-/* ---- Admin unlock (reveals any hidden account + Family+) ---- */
-function renderAdminPinSetup(){
-  if(!S.adminSetupStage){ S.adminSetupStage='first'; S.adminSetupFirst=''; }
-  const entry = S.pinEntry||'';
-  const isConfirm = S.adminSetupStage==='confirm';
+/* ---- Sign in / switch account ----
+   Used both as the initial full-app gate (cancellable=false, nothing to go back
+   to) and as the "switch identity" screen reached by long-pressing the logo
+   (cancellable=true) — typing the Admin email/password there elevates the
+   current device to Admin; typing the Family email/password signs back out of
+   Admin. Either way it's a real Supabase sign-in, not a local unlock — the
+   database itself decides what each login can see. */
+function renderLoginScreen(cancellable){
   app.innerHTML = `
     <div class="pin-screen">
       <div class="center-col">
-        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
-        <div class="pin-title">${isConfirm?'Confirm admin PIN':'Set an admin PIN'}</div>
-        <div class="pin-sub">${isConfirm?'Enter it once more to confirm.':'This unlocks a hidden account, separate from anyone\'s profile PIN.'}</div>
+        <div class="brand" style="justify-content:center;margin-bottom:14px;font-size:22px;"><span class="mark" style="width:34px;height:34px;"><i style="height:40%;width:5px"></i><i style="height:70%;width:5px"></i><i style="height:55%;width:5px"></i></span> DIY Fund</div>
+        <div class="pin-title">${cancellable?'Switch account':'Sign in'}</div>
       </div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
-      </div>
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
-        <button data-pin="cancel" style="font-size:12px;">Cancel</button>
-        <button data-pin="0">0</button>
-        <button data-pin="back">⌫</button>
+      <div class="setup-scroll" style="max-width:320px;margin:0 auto;width:100%;">
+        ${cancellable?'<div class="back-row"><button id="cancel-login">✕ Cancel</button></div>':''}
+        <div class="field"><label>Email</label><input type="email" id="login-email" autocomplete="username" placeholder="you@example.com" /></div>
+        <div class="field"><label>Password</label><input type="password" id="login-password" autocomplete="current-password" /></div>
+        ${S.authError?`<p class="hint" style="color:var(--red);margin-bottom:10px;">${S.authError}</p>`:''}
+        <button class="btn btn-primary" id="login-submit">Sign in</button>
       </div>
     </div>`;
-  app.querySelectorAll('[data-pin]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const k = btn.dataset.pin;
-      if(k==='cancel'){ S.view='home'; S.pinEntry=''; S.adminSetupStage=null; render(); return; }
-      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
-      if(entry.length>=4) return;
-      const next = entry+k;
-      S.pinEntry = next;
-      if(next.length===4){
-        if(!isConfirm){
-          S.adminSetupFirst = next;
-          S.adminSetupStage = 'confirm';
-          S.pinEntry='';
-          render();
-        } else if(next===S.adminSetupFirst){
-          S.adminPin = next;
-          S.adminUnlocked = true;
-          S.pinEntry=''; S.adminSetupStage=null; S.adminSetupFirst=null;
-          saveState();
-          S.view='switch';
-          render();
-        } else {
-          // Mismatch — start over from the first entry.
-          setTimeout(()=>{ S.pinEntry=''; S.adminSetupStage='first'; S.adminSetupFirst=''; render(); }, 400);
-          render();
-        }
-      } else render();
-    };
-  });
+  if(cancellable){
+    document.getElementById('cancel-login').onclick = ()=>{ S.authError=null; S.view='switch'; render(); };
+  }
+  const submit = async ()=>{
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    if(!email || !password) return;
+    const btn = document.getElementById('login-submit');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    const ok = await signIn(email, password);
+    if(ok) S.view = 'home';
+  };
+  document.getElementById('login-submit').onclick = submit;
+  document.getElementById('login-password').onkeydown = (e)=>{ if(e.key==='Enter') submit(); };
 }
 
-function renderAdminPinEntry(){
-  const entry = S.pinEntry||'';
-  app.innerHTML = `
-    <div class="pin-screen">
-      <div class="center-col">
-        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
-        <div class="pin-title">Admin PIN</div>
-      </div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
-      </div>
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
-        <button data-pin="cancel" style="font-size:12px;">Cancel</button>
-        <button data-pin="0">0</button>
-        <button data-pin="back">⌫</button>
-      </div>
-    </div>`;
-  app.querySelectorAll('[data-pin]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const k = btn.dataset.pin;
-      if(k==='cancel'){ S.view='home'; S.pinEntry=''; render(); return; }
-      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
-      if(entry.length>=4) return;
-      const next = entry+k;
-      S.pinEntry = next;
-      if(next.length===4){
-        if(next===S.adminPin){
-          S.adminUnlocked = true;
-          S.pinEntry='';
-          S.view='switch';
-          render();
-        } else {
-          setTimeout(()=>{ S.pinEntry=''; render(); }, 350);
-          render();
-        }
-      } else render();
-    };
-  });
-}
-
-/* ---- App PIN setup (whole-app lock, separate from any per-account PIN) ---- */
-function renderSetAppPin(){
-  if(!S.appPinSetupStage){ S.appPinSetupStage='first'; S.appPinSetupFirst=''; }
-  const entry = S.pinEntry||'';
-  const isConfirm = S.appPinSetupStage==='confirm';
-  app.innerHTML = `
-    <div class="pin-screen">
-      <div class="center-col">
-        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
-        <div class="pin-title">${isConfirm?'Confirm app PIN':'Set app PIN'}</div>
-        <div class="pin-sub">${isConfirm?'Enter it once more to confirm.':'Locks the whole app on open.'}</div>
-      </div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
-      </div>
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
-        <button data-pin="cancel" style="font-size:12px;">Cancel</button>
-        <button data-pin="0">0</button>
-        <button data-pin="back">⌫</button>
-      </div>
-    </div>`;
-  app.querySelectorAll('[data-pin]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const k = btn.dataset.pin;
-      if(k==='cancel'){ S.view='settings'; S.pinEntry=''; S.appPinSetupStage=null; render(); return; }
-      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
-      if(entry.length>=4) return;
-      const next = entry+k;
-      S.pinEntry = next;
-      if(next.length===4){
-        if(!isConfirm){
-          S.appPinSetupFirst = next;
-          S.appPinSetupStage = 'confirm';
-          S.pinEntry='';
-          render();
-        } else if(next===S.appPinSetupFirst){
-          S.appPin = next;
-          S.appPinSet = true;
-          S.unlocked = true;
-          S.pinEntry=''; S.appPinSetupStage=null; S.appPinSetupFirst=null;
-          saveState();
-          S.view='settings';
-          render();
-        } else {
-          setTimeout(()=>{ S.pinEntry=''; S.appPinSetupStage='first'; S.appPinSetupFirst=''; render(); }, 400);
-          render();
-        }
-      } else render();
-    };
-  });
-}
-
-/* ---- Per-account PIN entry, when switching into a PIN-protected profile ---- */
-function renderSwitchPin(){
-  const entry = S.pinEntry||'';
-  const target = S.profiles.find(pr=>pr.id===S.pendingSwitchId);
-  if(!target){ S.view='switch'; render(); return; }
-  app.innerHTML = `
-    <div class="pin-screen">
-      <div class="center-col">
-        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
-        <div class="pin-title">${escapeHTML(target.name)}'s PIN</div>
-      </div>
-      <div class="pin-dots">
-        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
-      </div>
-      <div class="pin-pad">
-        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
-        <button data-pin="cancel" style="font-size:12px;">Cancel</button>
-        <button data-pin="0">0</button>
-        <button data-pin="back">⌫</button>
-      </div>
-    </div>`;
-  app.querySelectorAll('[data-pin]').forEach(btn=>{
-    btn.onclick = ()=>{
-      const k = btn.dataset.pin;
-      if(k==='cancel'){ S.view='switch'; S.pinEntry=''; S.pendingSwitchId=null; render(); return; }
-      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
-      if(entry.length>=4) return;
-      const next = entry+k;
-      S.pinEntry = next;
-      if(next.length===4){
-        if(next===target.pin){
-          if(!target.hidden) S.adminUnlocked = false;
-          S.activeProfileId = target.id;
-          S.pinEntry=''; S.pendingSwitchId=null;
-          saveState();
-          S.view='home';
-          render();
-        } else {
-          setTimeout(()=>{ S.pinEntry=''; render(); }, 350);
-          render();
-        }
-      } else render();
-    };
-  });
-}
-
-/* ---- Onboarding (profile + plan setup) ---- */
 function renderOnboarding(){
   if(!S.setupStage) S.setupStage = 'welcome';
   if(S.setupStage==='welcome') return renderWelcome();
@@ -888,7 +861,7 @@ function renderWelcome(){
     </div>
   </div>`;
   document.getElementById('start-btn').onclick = ()=>{
-    S.draftProfile = {name:'', pin:''};
+    S.draftProfile = {name:''};
     S.setupStage = 'profile';
     render();
   };
@@ -907,10 +880,6 @@ function renderProfileSetup(){
         <input type="text" id="pname" value="${d.name}" placeholder="e.g. Mom, Leo, Mira" />
       </div>
       <div class="field">
-        <label>4-digit PIN (optional — separates this account from others)</label>
-        <input type="password" id="ppin" maxlength="4" inputmode="numeric" value="${d.pin}" placeholder="Leave blank to skip" />
-      </div>
-      <div class="field">
         <label>Tone</label>
         <div class="chip-select" id="tone-select">
           ${Object.entries(TONE_PROFILES).map(([key,t])=>`<button data-tone="${key}" class="${d.tone===key?'active':''}">${t.label}</button>`).join('')}
@@ -926,7 +895,6 @@ function renderProfileSetup(){
     };
   }
   document.getElementById('pname').oninput = (e)=>{ d.name=e.target.value; document.getElementById('next-btn').disabled=!d.name; };
-  document.getElementById('ppin').oninput = (e)=>{ d.pin=e.target.value.replace(/\D/g,'').slice(0,4); };
   document.querySelectorAll('#tone-select [data-tone]').forEach(b=>{
     b.onclick = ()=>{ d.tone=b.dataset.tone; renderProfileSetup(); };
   });
@@ -1012,20 +980,18 @@ function renderPlanSetup(){
   document.getElementById('gsavings').oninput = e=>{ d.savingsRate=+e.target.value; };
   document.getElementById('gfee').oninput = e=>{ d.defaultFeePct=+e.target.value; };
 
-  document.getElementById('finish-btn').onclick = ()=>{
+  document.getElementById('finish-btn').onclick = async ()=>{
     const id = uid();
-    S.profiles.push({
-      id, name:S.draftProfile.name, pin:S.draftProfile.pin||null, tone:S.draftProfile.tone||'neutral',
+    const newProfile = {
+      id, name:S.draftProfile.name, tone:S.draftProfile.tone||'neutral',
       hidden: S.draftProfile.hidden||false,
       plan:{...d}, assets:[], transactions:[], prices:{}
-    });
+    };
+    S.profiles.push(newProfile);
     S.activeProfileId = id;
     S.draftProfile=null; S.draftPlan=null; S.setupStage=null;
-    if(S.profiles.length===1 && !S.appPinSet){
-      // offer app-level pin later via settings; skip forcing now
-    }
-    saveState();
     render();
+    await dbInsertProfile(newProfile);
   };
 }
 
@@ -1080,14 +1046,15 @@ function renderTopbar(){
   document.getElementById('profile-switch').onclick = ()=>{ S.view='switch'; render(); };
   document.getElementById('settings-btn').onclick = ()=>{ S.view='settings'; render(); };
 
-  // Long-press the logo to reach the admin unlock — deliberately not a visible
-  // button, since the whole point is that it isn't discoverable by browsing.
+  // Long-press the logo to switch which account is signed in (e.g. elevate to
+  // Admin) — deliberately not a visible button, since the point is that it
+  // isn't discoverable by browsing.
   const logo = document.getElementById('brand-logo');
   let pressTimer = null;
   const startPress = ()=>{
     pressTimer = setTimeout(()=>{
-      S.pinEntry='';
-      S.view = S.adminPin ? 'admin-pin-entry' : 'admin-pin-setup';
+      S.authError = null;
+      S.view = 'switch-account';
       render();
     }, 700);
   };
@@ -1120,7 +1087,7 @@ function renderView(){
 function renderSwitchProfile(main){
   const visibleProfiles = S.profiles.filter(p=>!p.hidden);
   const hiddenProfiles = S.profiles.filter(p=>p.hidden);
-  const showHidden = S.adminUnlocked;
+  const showHidden = S.myRole==='admin';
 
   main.innerHTML = `
     <div class="page-title">Switch account</div>
@@ -1177,26 +1144,13 @@ function renderSwitchProfile(main){
     </div>`;
   main.querySelectorAll('[data-pick]').forEach(el=>{
     el.onclick = ()=>{
-      if(el.dataset.pick==='FAMILY' || el.dataset.pick==='FAMILY_PLUS'){
-        // Picking the plain Family view (not Family+) is a deliberate step away
-        // from admin-visible content, so it re-locks. Family+ itself doesn't —
-        // you're still looking at the hidden data on purpose.
-        if(el.dataset.pick==='FAMILY') S.adminUnlocked = false;
-        S.activeProfileId = el.dataset.pick; S.view='home'; saveState(); render(); return;
-      }
-      const target = S.profiles.find(p=>p.id===el.dataset.pick);
-      if(!target.hidden) S.adminUnlocked = false; // picking a normal account re-locks
-      if(target.pin){
-        S.pendingSwitchId = target.id;
-        S.view = 'switchpin'; S.pinEntry='';
-        render(); return;
-      }
-      S.activeProfileId = target.id; S.view='home'; saveState(); render();
+      S.activeProfileId = el.dataset.pick;
+      S.view='home'; render();
     };
   });
   if(visibleProfiles.length<5){
     document.getElementById('add-profile').onclick = ()=>{
-      S.draftProfile = {name:'', pin:''};
+      S.draftProfile = {name:''};
       S.setupStage = 'profile';
       render();
     };
@@ -1204,7 +1158,7 @@ function renderSwitchProfile(main){
   const addHiddenBtn = document.getElementById('add-hidden-profile');
   if(addHiddenBtn){
     addHiddenBtn.onclick = ()=>{
-      S.draftProfile = {name:'', pin:'', hidden:true};
+      S.draftProfile = {name:'', hidden:true};
       S.setupStage = 'profile';
       render();
     };
@@ -1216,27 +1170,12 @@ function renderSettings(main, p){
   main.innerHTML = `
     <div class="page-title">Settings</div>
     <div class="card card-sm">
-      <div class="card-title">App lock</div>
+      <div class="card-title">Account</div>
       <div class="row" style="margin-bottom:8px;">
-        <span style="font-size:13.5px;">App PIN ${S.appPinSet?'enabled':'disabled'}</span>
-        <button class="btn" style="width:auto;padding:8px 12px;" id="toggle-app-pin">${S.appPinSet?'Turn off':'Set PIN'}</button>
+        <span style="font-size:13.5px;">Signed in as <b>${S.myRole==='admin'?'Admin':'Family'}</b></span>
+        <button class="btn" style="width:auto;padding:8px 12px;" id="log-out-btn">Log out</button>
       </div>
-      <div class="hint">Separate from each account's own optional PIN.</div>
-    </div>
-    ${S.adminUnlocked?`
-    <div class="card card-sm" style="border-color:rgba(224,163,54,.3);background:var(--amber-soft);">
-      <div class="row">
-        <span style="font-size:13.5px;font-weight:600;color:#f0c874;">Admin access is unlocked</span>
-        <button class="btn" style="width:auto;padding:8px 12px;background:var(--amber);border-color:var(--amber);color:#1a1305;font-weight:700;" id="lock-admin-now">Lock now</button>
-      </div>
-    </div>`:''}
-    <div class="card card-sm">
-      <div class="card-title">Household tax exemption</div>
-      <div class="field" style="margin-bottom:0;">
-        <label>Annual exemption (€) — combined across all accounts</label>
-        <input type="number" id="exempt-input" value="${S.exemptionAmount||DEFAULT_EXEMPTION}" />
-        <div class="hint">Belgium's 2026 capital-gains regime exempts the first €10,000 of gains per person, per year, indexed annually.</div>
-      </div>
+      <div class="hint">${S.myRole==='admin'?'Log out and sign back in with the Family login before handing this phone to the kids — that\'s what actually keeps the hidden account private, not just switching views.':'Long-press the logo to sign in as Admin.'}</div>
     </div>
     ${p ? `
     <div class="card card-sm">
@@ -1267,19 +1206,17 @@ function renderSettings(main, p){
     </div>
     <button class="btn btn-ghost" id="back-home">Done</button>
   `;
-  document.getElementById('toggle-app-pin').onclick = ()=>{
-    if(S.appPinSet){ S.appPinSet=false; S.appPin=null; saveState(); render(); }
-    else{ S.view='setapppin'; S.pinEntry=''; render(); }
+  document.getElementById('log-out-btn').onclick = async ()=>{ await signOutNow(); };
+  document.getElementById('api-key-input').onchange = async e=>{
+    S.anthropicApiKey=e.target.value.trim();
+    const { error } = await sb.from('app_settings').update({ anthropic_api_key:S.anthropicApiKey }).eq('id',1);
+    if(error) console.error('save api key failed', error);
   };
-  const lockNowBtn = document.getElementById('lock-admin-now');
-  if(lockNowBtn) lockNowBtn.onclick = ()=>{ S.adminUnlocked=false; S.view='home'; render(); };
-  document.getElementById('exempt-input').onchange = e=>{ S.exemptionAmount=+e.target.value; saveState(); };
-  document.getElementById('api-key-input').onchange = e=>{ S.anthropicApiKey=e.target.value.trim(); saveState(); };
   if(p){
-    document.getElementById('rate-input').onchange = e=>{ p.plan.savingsRate=+e.target.value; saveState(); };
-    document.getElementById('fee-rate-input').onchange = e=>{ p.plan.defaultFeePct=+e.target.value; saveState(); };
+    document.getElementById('rate-input').onchange = async e=>{ p.plan.savingsRate=+e.target.value; render(); await dbUpdateProfile(p); };
+    document.getElementById('fee-rate-input').onchange = async e=>{ p.plan.defaultFeePct=+e.target.value; render(); await dbUpdateProfile(p); };
     document.querySelectorAll('#tone-select-settings [data-tone]').forEach(b=>{
-      b.onclick = ()=>{ p.tone=b.dataset.tone; saveState(); render(); };
+      b.onclick = async ()=>{ p.tone=b.dataset.tone; render(); await dbUpdateProfile(p); };
     });
   }
   document.getElementById('back-home').onclick = ()=>{ S.view='home'; render(); };
@@ -1322,7 +1259,6 @@ function renderHome(main, p){
       </div>`:''}
       ${totals.feesPaid>0?`<div class="goal-figs" style="margin-top:6px;">
         <span>Fees paid <b class="num" style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></span>
-        <span class="hint" style="font-size:11px;">already counted in cost basis, not in "Invested so far"</span>
       </div>`:''}
     </div>
 
@@ -1651,25 +1587,54 @@ function buildSummaryText(p, totals, ahead){
   if(!best) return `No contributions logged yet — once you log the first one, this'll track how you're doing against a savings account and how each bucket is pulling its weight.`;
 
   const principal = principalContributed(p);
+  const tone = (p.tone||'neutral');
+  const gapAmt = fmtEUR(Math.abs(ahead));
   let text;
+
   if(ahead>=0){
-    text = `You've put in ${fmtEUR(principal)} so far, and right now you're ahead of a plain savings account by ${fmtEUR(Math.abs(ahead))}. Nice work — that's the real reward for taking on the extra risk.`;
+    if(tone==='direct'){
+      text = `You've put in ${fmtEUR(principal)} so far — you're beating savings by ${gapAmt} right now. That's the payoff for taking on real risk instead of parking it in a savings account.`;
+    } else if(tone==='encouraging'){
+      text = `You've saved up ${fmtEUR(principal)}. And guess what — you're doing better than a savings account, by ${gapAmt}! That's awesome.`;
+    } else {
+      text = `You've put in ${fmtEUR(principal)} so far, and right now you're ahead of a plain savings account by ${gapAmt}. Nice work — that's the real reward for taking on the extra risk.`;
+    }
     if(best && worst && best.name!==worst.name){
-      text += ` ${best.name} is carrying the growth this stretch (${fmtPct(best.pct)}), while ${worst.name} is ${worst.pct<0?'pulling back':'lagging'} (${fmtPct(worst.pct)}).`;
+      if(tone==='encouraging'){
+        text += ` Your ${best.name} bucket is doing great right now (${fmtPct(best.pct)}). Your ${worst.name} bucket is a bit slower (${fmtPct(worst.pct)}) — that's totally normal.`;
+      } else {
+        text += ` ${best.name} is carrying the growth this stretch (${fmtPct(best.pct)}), while ${worst.name} is ${worst.pct<0?'pulling back':'lagging'} (${fmtPct(worst.pct)}).`;
+      }
     }
   } else {
-    text = `You've put in ${fmtEUR(principal)} so far, and right now you're behind a plain savings account by ${fmtEUR(Math.abs(ahead))}. That happens — investing carries real risk, and a rough stretch like this doesn't need to change the plan.`;
-    if(best && worst && best.name!==worst.name){
-      text += ` ${worst.name} is what's dragging things down at the moment (${fmtPct(worst.pct)}), while ${best.name} is holding up better (${fmtPct(best.pct)}).`;
+    if(tone==='direct'){
+      text = `You've put in ${fmtEUR(principal)} so far — you're behind savings by ${gapAmt} right now. That's real risk showing up as a real number. Worth knowing why, not worth panicking over.`;
+    } else if(tone==='encouraging'){
+      text = `You've saved up ${fmtEUR(principal)}. Right now you're a little behind a savings account, by ${gapAmt} — and that's totally okay. This is how you learn. It doesn't mean you did anything wrong.`;
+    } else {
+      text = `You've put in ${fmtEUR(principal)} so far, and right now you're behind a plain savings account by ${gapAmt}. That happens — investing carries real risk, and a rough stretch like this doesn't need to change the plan.`;
     }
-    text += ` Worth a calm look at whether your bucket split still feels right, rather than reacting to one stretch.`;
+    if(best && worst && best.name!==worst.name){
+      if(tone==='encouraging'){
+        text += ` Your ${worst.name} bucket is having a rough time right now (${fmtPct(worst.pct)}). But your ${best.name} bucket is doing better (${fmtPct(best.pct)}) — nice!`;
+      } else {
+        text += ` ${worst.name} is what's dragging things down at the moment (${fmtPct(worst.pct)}), while ${best.name} is holding up better (${fmtPct(best.pct)}).`;
+      }
+    }
+    if(tone==='direct'){
+      text += ` Check the split if you want, but don't overreact to one stretch.`;
+    } else if(tone==='encouraging'){
+      text += ` Whenever you're ready, maybe take a look together with your family at your split. No rush at all.`;
+    } else {
+      text += ` Worth a calm look at whether your bucket split still feels right, rather than reacting to one stretch.`;
+    }
   }
 
   const warning = diversificationWarning(p, bTotals, totals.value);
   if(warning) text += ` ${warning}`;
 
-  if(ahead<0 && (p.tone||'neutral')==='encouraging'){
-    text += ` Remember — savings are really just one part of a bigger picture here. The whole point of spreading across buckets is that no single comparison tells the full story; the mix is what's actually protecting you long-term.`;
+  if(ahead<0 && tone==='encouraging'){
+    text += ` Remember: a savings account is just one small piece of the picture. Spreading your money across different buckets is what really protects you over time — not just one number.`;
   }
   return text;
 }
@@ -1941,8 +1906,14 @@ async function refreshPrices(p){
     S.priceRefreshNote = null;
   }
 
-  saveState();
   render();
+  // Push whatever prices actually changed to the database — done after
+  // rendering so the UI updates instantly rather than waiting on the network.
+  const allTouched = [...cryptoAssets, ...otherAssets];
+  await Promise.all(allTouched.map(a=>{
+    const pr = p.prices[a.id];
+    return pr ? dbUpdateAssetPrice(a.id, pr.price, pr.asOf) : Promise.resolve();
+  }));
 }
 
 /* ---- Register a transaction (buy or sell chooser) ---- */
@@ -2088,17 +2059,19 @@ function renderDividendFlow(main, p){
   const manualFx = document.getElementById('div-fxrate');
   if(manualFx) manualFx.oninput = e=>{ d.fxRate=Math.max(+e.target.value,0); refreshValidity(); };
 
-  document.getElementById('div-save-btn').onclick = ()=>{
+  document.getElementById('div-save-btn').onclick = async ()=>{
     const finalEurAmount = d.currency==='EUR' ? (+d.amountEUR) : (+d.amountEUR)*(+d.fxRate);
     if(!((+d.amountEUR||0)>0) || (d.currency!=='EUR' && !((+d.fxRate||0)>0))) return;
-    p.transactions.push({
+    const tx = {
       id:uid(), date:d.date, type:'dividend', bucket:pos.asset.bucket, assetId:pos.assetId,
       amountEUR: finalEurAmount, reasoning: d.reasoning,
       origCurrency: d.currency!=='EUR' ? d.currency : undefined,
       origAmount: d.currency!=='EUR' ? +d.amountEUR : undefined,
       fxRate: d.currency!=='EUR' ? +d.fxRate : undefined
-    });
-    S.dividendDraft=null; S.view='home'; saveState(); render();
+    };
+    p.transactions.push(tx);
+    S.dividendDraft=null; S.view='home'; render();
+    await dbInsertTransaction(p.id, tx);
   };
 
   if(d.currency!=='EUR' && !d.fxRate && !d.fxFailed) fetchDividendFx(p);
@@ -2242,14 +2215,16 @@ function renderSellFlow(main, p){
   document.getElementById('sell-fee').oninput = e=>{ d.fee=Math.max(+e.target.value,0); updatePreview(); };
   document.getElementById('sell-reasoning').oninput = e=>{ d.reasoning=e.target.value; updatePreview(); };
 
-  document.getElementById('sell-save-btn').onclick = ()=>{
+  document.getElementById('sell-save-btn').onclick = async ()=>{
     const finalPreview = sellPreview(pos, d);
     if(!(finalPreview.unitsToSell>0 && d.reasoning && d.priceAtSell>0)) return;
-    p.transactions.push({
+    const tx = {
       id:uid(), date:d.date, type:'sell', bucket:pos.asset.bucket, assetId:pos.assetId,
       units:finalPreview.unitsToSell, priceAtSell:d.priceAtSell, fee:d.fee||0, reasoning:d.reasoning
-    });
-    S.sellDraft=null; S.view='home'; saveState(); render();
+    };
+    p.transactions.push(tx);
+    S.sellDraft=null; S.view='home'; render();
+    await dbInsertTransaction(p.id, tx);
   };
 }
 
@@ -2348,7 +2323,7 @@ function renderEditTransaction(main, p){
     document.getElementById('edit-price').oninput = e=>{ d.priceAtBuy=Math.max(+e.target.value,0); updatePreview(); };
   }
 
-  document.getElementById('save-edit-btn').onclick = ()=>{
+  document.getElementById('save-edit-btn').onclick = async ()=>{
     if(d.isDividend){
       tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.reasoning=d.reasoning;
     } else if(d.isSell){
@@ -2356,14 +2331,16 @@ function renderEditTransaction(main, p){
     } else {
       tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.priceAtBuy=+d.priceAtBuy; tx.fee=+d.fee||0; tx.reasoning=d.reasoning;
     }
-    S.editTxDraft=null; S.view='positions'; saveState(); render();
+    S.editTxDraft=null; S.view='positions'; render();
+    await dbUpdateTransaction(tx);
   };
 
   if(d.confirmingDelete){
     document.getElementById('cancel-delete-btn').onclick = ()=>{ d.confirmingDelete=false; render(); };
-    document.getElementById('confirm-delete-btn').onclick = ()=>{
+    document.getElementById('confirm-delete-btn').onclick = async ()=>{
       p.transactions = p.transactions.filter(t=>t.id!==d.txId);
-      S.editTxDraft=null; S.view='positions'; saveState(); render();
+      S.editTxDraft=null; S.view='positions'; render();
+      await dbDeleteTransaction(d.txId);
     };
   } else {
     document.getElementById('delete-tx-btn').onclick = ()=>{ d.confirmingDelete=true; render(); };
@@ -2636,10 +2613,11 @@ function renderContributeFlow(main, p){
     renderContributeFlow(main, p);
   };
 
-  document.getElementById('save-contrib').onclick = ()=>{
+  document.getElementById('save-contrib').onclick = async ()=>{
     const ready = purchases.filter(purchaseIsValid);
     if(!ready.length) return; // shouldn't happen since button is disabled, but guard anyway
-    ready.forEach(pk=>{
+    const newTx = [];
+    for(const pk of ready){
       const fxRate = pk.currency==='EUR' ? 1 : (+pk.fxRate||0);
       const eurPrice = (+pk.price)*fxRate;
       const eurAmount = (+pk.amountEUR)*fxRate;
@@ -2648,9 +2626,11 @@ function renderContributeFlow(main, p){
       if(pk.assetId==='__new__'){
         const na = pk.newAsset;
         const newId = uid();
-        p.assets.push({id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0});
+        const newAsset = {id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0};
+        p.assets.push(newAsset);
         p.prices[newId] = {price:eurPrice, asOf:new Date().toISOString(), currency:'EUR'};
         pk.finalAssetId = newId;
+        dbInsertAsset(p.id, newAsset).then(()=>dbUpdateAssetPrice(newId, eurPrice, new Date().toISOString()));
       } else {
         pk.finalAssetId = pk.assetId;
         // Only let this purchase's price become the newly tracked current price if
@@ -2660,18 +2640,20 @@ function renderContributeFlow(main, p){
         const newAsOf = new Date(pk.date).toISOString();
         if(!existing || newAsOf >= existing.asOf){
           p.prices[pk.assetId] = {price:eurPrice, asOf:newAsOf, currency:'EUR'};
+          dbUpdateAssetPrice(pk.assetId, eurPrice, newAsOf);
         }
       }
-      p.transactions.push({
+      const tx = {
         id:uid(), date:pk.date||todayISO(), bucket:pk.bucket, assetId:pk.finalAssetId,
         amountEUR: eurAmount, priceAtBuy: eurPrice, reasoning: pk.reasoning, fee: eurFee,
         origCurrency: pk.currency!=='EUR' ? pk.currency : undefined,
         origAmount: pk.currency!=='EUR' ? +pk.amountEUR : undefined,
         origPrice: pk.currency!=='EUR' ? +pk.price : undefined,
         fxRate: pk.currency!=='EUR' ? fxRate : undefined
-      });
-    });
-    saveState();
+      };
+      p.transactions.push(tx);
+      newTx.push(tx);
+    }
     // Leave any incomplete entries in the draft so they can be finished later; only clear if all were saved.
     d.purchases = purchases.filter(pk=>!purchaseIsValid(pk));
     if(d.purchases.length===0){
@@ -2680,6 +2662,7 @@ function renderContributeFlow(main, p){
       d.justSaved = ready.length;
       renderContributeFlow(main, p);
     }
+    for(const tx of newTx) await dbInsertTransaction(p.id, tx);
   };
 }
 
@@ -3037,7 +3020,21 @@ function renderTax(main, p){
     const sum = householdTaxSummary(includeHidden);
     const familySlices = buildFamilySlices(includeHidden);
     const pct = Math.min(sum.realizedGain/sum.exemption*100,100);
-    body.innerHTML = `<div class="card">
+    body.innerHTML = `
+    <div class="card card-sm" style="margin-bottom:14px;">
+      <div class="row">
+        <span style="font-size:12.5px;color:var(--text-dim);">This year's exemption</span>
+        ${S.editingExemption?'':'<button class="btn-ghost" id="edit-exemption-btn" style="width:auto;padding:6px 10px;font-size:12px;color:var(--accent-2);">Edit</button>'}
+      </div>
+      ${S.editingExemption ? `
+        <div style="display:flex;gap:8px;margin-top:8px;">
+          <input type="number" id="exempt-input-tax" value="${S.exemptionAmount||DEFAULT_EXEMPTION}" style="flex:1;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;padding:10px 12px;color:var(--text);font-size:14px;" />
+          <button class="btn btn-primary" id="save-exemption-btn" style="width:auto;padding:0 16px;">Save</button>
+        </div>
+        <div class="hint" style="margin-top:6px;">Belgium's exemption is indexed and updated by the government each year — confirm this matches the current official figure.</div>
+      ` : `<div style="font-size:20px;font-weight:750;font-family:var(--font-num);margin-top:4px;">${fmtEUR(S.exemptionAmount||DEFAULT_EXEMPTION)}</div>`}
+    </div>
+    <div class="card">
       <div class="card-title">Combined across all accounts — realized (taxable)</div>
       <div class="exempt-ring-wrap">
         <div class="exempt-figs">
@@ -3073,6 +3070,19 @@ function renderTax(main, p){
     </div>` : ''}`;
     const familyCanvas = document.getElementById('family-diversify-chart');
     if(familyCanvas) drawDonutChart(familyCanvas, familySlices);
+    const editExemptBtn = document.getElementById('edit-exemption-btn');
+    if(editExemptBtn) editExemptBtn.onclick = ()=>{ S.editingExemption=true; render(); };
+    const saveExemptBtn = document.getElementById('save-exemption-btn');
+    if(saveExemptBtn) saveExemptBtn.onclick = async ()=>{
+      const val = +document.getElementById('exempt-input-tax').value;
+      S.editingExemption=false;
+      if(val>0){
+        S.exemptionAmount = val;
+        render();
+        const { error } = await sb.from('app_settings').update({ exemption_amount:val }).eq('id',1);
+        if(error) console.error('save exemption failed', error);
+      } else render();
+    };
   }
 }
 
@@ -3152,7 +3162,22 @@ function renderLearn(main){
 function escapeHTML(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
 
 /* ---------------------------- Boot ---------------------------- */
-render();
+// Supabase persists a signed-in session across reloads automatically — this
+// checks for one before showing anything, so a returning user who's already
+// logged in goes straight into the app instead of being asked to sign in again
+// every time they open it.
+(async function boot(){
+  render(); // shows the loading screen immediately while the check runs
+  const { data } = await sb.auth.getSession();
+  if(data.session){
+    S.session = data.session;
+    await resolveRole();
+    await loadAllData();
+  } else {
+    S.loading = false;
+    render();
+  }
+})();
 window.addEventListener('resize', ()=>{ if(S.view==='home') render(); });
 
 // The service worker (offline caching) caused more grief than it was worth —
