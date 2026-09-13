@@ -1,4 +1,4 @@
-const CACHE = 'ledger-v1';
+const CACHE = 'diy-fund-v2';
 const SHELL = ['./', './index.html', './manifest.json', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', (e) => {
@@ -16,9 +16,18 @@ self.addEventListener('activate', (e) => {
 });
 
 self.addEventListener('fetch', (e) => {
-  // Network-first for API calls, cache-first for app shell.
   if (e.request.url.includes('api.anthropic.com')) return;
+  // Network-first: always try to fetch the latest version. Only fall back to
+  // the cached copy if the network request genuinely fails (e.g. offline) —
+  // this is what keeps the installed app current after every update, instead
+  // of silently serving a stale copy forever.
   e.respondWith(
-    caches.match(e.request).then((cached) => cached || fetch(e.request).catch(() => cached))
+    fetch(e.request)
+      .then((res) => {
+        const resClone = res.clone();
+        caches.open(CACHE).then((c) => c.put(e.request, resClone));
+        return res;
+      })
+      .catch(() => caches.match(e.request))
   );
 });
