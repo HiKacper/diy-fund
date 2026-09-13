@@ -625,11 +625,6 @@ function render(){
   if(S.view==='switchpin'){ renderSwitchPin(); return; }
   const p = activeProfile();
   if(!p && S.activeProfileId!=='FAMILY' && S.activeProfileId!=='FAMILY_PLUS'){ S.activeProfileId = S.profiles.find(pr=>!pr.hidden)?.id || S.profiles[0].id; saveState(); }
-  // Switching to a regular account or the plain Family view always re-locks admin
-  // access — unlocking is scoped to actively viewing the hidden stuff, not a
-  // standing session state that could be left open on a shared phone.
-  if(p && !p.hidden) S.adminUnlocked = false;
-  if(S.activeProfileId==='FAMILY') S.adminUnlocked = false;
   if(S.view!=='positions') S.historyEditMode = false; // leaving Assets always closes correcting mode
   // Every render redraws the whole screen from scratch, which otherwise resets
   // scroll to the top on every keystroke or toggle — fine for an actual
@@ -858,6 +853,7 @@ function renderSwitchPin(){
       S.pinEntry = next;
       if(next.length===4){
         if(next===target.pin){
+          if(!target.hidden) S.adminUnlocked = false;
           S.activeProfileId = target.id;
           S.pinEntry=''; S.pendingSwitchId=null;
           saveState();
@@ -1182,9 +1178,14 @@ function renderSwitchProfile(main){
   main.querySelectorAll('[data-pick]').forEach(el=>{
     el.onclick = ()=>{
       if(el.dataset.pick==='FAMILY' || el.dataset.pick==='FAMILY_PLUS'){
+        // Picking the plain Family view (not Family+) is a deliberate step away
+        // from admin-visible content, so it re-locks. Family+ itself doesn't —
+        // you're still looking at the hidden data on purpose.
+        if(el.dataset.pick==='FAMILY') S.adminUnlocked = false;
         S.activeProfileId = el.dataset.pick; S.view='home'; saveState(); render(); return;
       }
       const target = S.profiles.find(p=>p.id===el.dataset.pick);
+      if(!target.hidden) S.adminUnlocked = false; // picking a normal account re-locks
       if(target.pin){
         S.pendingSwitchId = target.id;
         S.view = 'switchpin'; S.pinEntry='';
