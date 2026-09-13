@@ -901,8 +901,10 @@ function renderWelcome(){
 function renderProfileSetup(){
   const d = S.draftProfile;
   if(!d.tone) d.tone = 'neutral';
+  const canCancel = S.profiles.length>0;
   app.innerHTML = `
     <div class="setup-scroll">
+      ${canCancel?'<div class="back-row"><button id="cancel-profile-setup">✕ Cancel</button></div>':''}
       <div class="page-title">Who's this account for?</div>
       <div class="field">
         <label>Name</label>
@@ -921,6 +923,12 @@ function renderProfileSetup(){
       </div>
       <button class="btn btn-primary" id="next-btn" ${d.name?'':'disabled'}>Continue</button>
     </div>`;
+  if(canCancel){
+    document.getElementById('cancel-profile-setup').onclick = ()=>{
+      S.draftProfile=null; S.setupStage=null; S.view='switch';
+      render();
+    };
+  }
   document.getElementById('pname').oninput = (e)=>{ d.name=e.target.value; document.getElementById('next-btn').disabled=!d.name; };
   document.getElementById('ppin').oninput = (e)=>{ d.pin=e.target.value.replace(/\D/g,'').slice(0,4); };
   document.querySelectorAll('#tone-select [data-tone]').forEach(b=>{
@@ -941,8 +949,10 @@ function renderPlanSetup(){
   const d = S.draftPlan;
   const sum = d.buckets.long + d.buckets.div + d.buckets.spec;
   const valid = d.goalName && sum===d.monthlyAmount;
+  const canCancel = S.profiles.length>0;
   app.innerHTML = `
     <div class="setup-scroll">
+      ${canCancel?'<div class="back-row"><button id="cancel-plan-setup">✕ Cancel</button></div>':''}
       <div class="page-title">Set the investment plan</div>
       <div class="field">
         <label>Goal name</label>
@@ -984,6 +994,12 @@ function renderPlanSetup(){
       <button class="btn btn-primary" id="finish-btn" ${valid?'':'disabled'}>Create plan</button>
     </div>`;
 
+  if(canCancel){
+    document.getElementById('cancel-plan-setup').onclick = ()=>{
+      S.draftProfile=null; S.draftPlan=null; S.setupStage=null; S.view='switch';
+      render();
+    };
+  }
   function refresh(){
     const sum2 = d.buckets.long + d.buckets.div + d.buckets.spec;
     document.getElementById('sumhint').textContent = `Sum: €${sum2} of €${d.monthlyAmount}`;
