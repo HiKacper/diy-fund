@@ -1,0 +1,2852 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>DIY Fund — Family Investing</title>
+<meta name="description" content="A private family investment practice tracker." />
+<link rel="manifest" href="manifest.json" />
+<meta name="theme-color" content="#0a0a0f" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DIY Fund" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<link rel="icon" href="icon-192.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0a0a0f;
+    --surface:#12141c;
+    --surface-2:#181c27;
+    --surface-3:#1f2430;
+    --border:#232733;
+    --border-soft:#1a1e28;
+    --text:#e9ebf1;
+    --text-dim:#9299ac;
+    --text-faint:#5c6376;
+    --accent:#3b82f6;
+    --accent-2:#60a5fa;
+    --accent-dim:#1d4ed8;
+    --accent-soft:rgba(59,130,246,.14);
+    --green:#22c55e;
+    --green-soft:rgba(34,197,94,.13);
+    --red:#f0554a;
+    --red-soft:rgba(240,85,74,.13);
+    --amber:#e0a336;
+    --amber-soft:rgba(224,163,54,.13);
+    --radius-lg:20px;
+    --radius-md:14px;
+    --radius-sm:9px;
+    --font-ui:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --font-num:'JetBrains Mono',ui-monospace,SFMono-Regular,monospace;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bg);
+    color:var(--text);
+    font-family:var(--font-ui);
+    -webkit-font-smoothing:antialiased;
+    min-height:100vh;
+    min-height:100dvh;
+    overscroll-behavior-y:none;
+  }
+  #app{max-width:520px;margin:0 auto;min-height:100dvh;position:relative;padding-bottom:84px;}
+  @media (min-width:900px){
+    #app{max-width:none;display:grid;grid-template-columns:220px 1fr;min-height:100vh;padding-bottom:0;}
+  }
+  button{font-family:inherit;cursor:pointer;}
+  input,select,textarea{font-family:inherit;}
+  a{color:inherit;}
+  .num{font-family:var(--font-num);font-variant-numeric:tabular-nums;}
+  .hidden{display:none !important;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:18px 18px 10px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:750;font-size:17px;letter-spacing:-0.01em;}
+  .brand .mark{width:26px;height:26px;border-radius:8px;background:var(--accent);display:flex;align-items:end;gap:2px;padding:5px 4px 4px;}
+  .brand .mark i{display:block;width:4px;background:var(--bg);border-radius:1px;}
+  .topbar-actions{display:flex;align-items:center;gap:8px;}
+  .icon-btn{
+    width:36px;height:36px;border-radius:11px;border:1px solid var(--border);
+    background:var(--surface);color:var(--text-dim);display:flex;align-items:center;justify-content:center;
+    font-size:16px;
+  }
+  .icon-btn:active{background:var(--surface-2);}
+  .profile-switch{
+    display:flex;align-items:center;gap:6px;border:1px solid var(--border);background:var(--surface);
+    border-radius:11px;padding:6px 10px 6px 6px;font-size:13px;font-weight:600;color:var(--text);
+  }
+  .profile-switch .avatar{width:22px;height:22px;border-radius:7px;background:var(--accent-soft);color:var(--accent-2);
+    display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;}
+
+  main{padding:4px 16px 30px;}
+
+  /* ---------- Cards ---------- */
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;margin-bottom:14px;}
+  .card-sm{border-radius:var(--radius-md);padding:14px;}
+  .card-title{font-size:13px;font-weight:650;color:var(--text);margin:0 0 10px;}
+  .row{display:flex;align-items:center;justify-content:space-between;}
+  .stack{display:flex;flex-direction:column;gap:10px;}
+
+  /* Goal card */
+  .goal-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;}
+  .goal-name{font-size:13px;font-weight:650;color:var(--text);}
+  .goal-count{font-size:12.5px;color:var(--accent-2);font-weight:600;margin-top:2px;}
+  .goal-bar-track{height:7px;border-radius:5px;background:var(--surface-3);overflow:hidden;margin:10px 0 12px;}
+  .goal-bar-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent));border-radius:5px;}
+
+  /* Home timeline: start → today → target date */
+  .timeline-track{position:relative;height:7px;border-radius:5px;background:var(--surface-3);margin:30px 0 10px;}
+  .timeline-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent));border-radius:5px;}
+  .timeline-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 2px var(--accent);}
+  .timeline-marker-label{position:absolute;top:-21px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--accent-2);white-space:nowrap;}
+  .timeline-dates{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);}
+  .goal-figs{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);}
+  .goal-figs b{color:var(--text);font-family:var(--font-num);font-weight:650;}
+
+  /* Hero value */
+  .hero-value{font-size:34px;font-weight:750;letter-spacing:-0.02em;font-family:var(--font-num);}
+  .hero-delta{font-size:13.5px;font-weight:650;margin-top:2px;}
+  .delta-up{color:var(--green);} .delta-down{color:var(--red);} .delta-flat{color:var(--text-dim);}
+  .price-meta{font-size:11.5px;color:var(--text-faint);margin-top:2px;}
+  .refresh-link{color:var(--accent-2);font-weight:600;cursor:pointer;}
+
+  .range-tabs{display:flex;gap:6px;margin-top:14px;}
+  .range-tabs button{
+    flex:1;padding:7px 0;border-radius:9px;border:1px solid var(--border-soft);background:transparent;
+    color:var(--text-faint);font-size:12px;font-weight:650;
+  }
+  .range-tabs button.active{background:var(--surface-3);color:var(--text);border-color:var(--border);}
+  canvas.chart{width:100%;height:150px;display:block;margin-top:12px;}
+  .savings-compare-block{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-soft);}
+  .savings-compare-block .label{font-size:12px;color:var(--text-dim);}
+  .savings-compare-block .val{font-size:12.5px;font-weight:650;}
+
+  /* Buckets */
+  .bucket-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;}
+  .bucket-chip{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-md);padding:12px 10px;}
+  .bucket-chip .bname{font-size:11px;color:var(--text-dim);font-weight:650;margin-bottom:6px;}
+  .bucket-chip .bval{font-family:var(--font-num);font-size:15px;font-weight:700;}
+  .bucket-chip .bdelta{font-size:11.5px;font-weight:650;margin-top:2px;}
+  .dot-long{color:var(--accent-2);} .dot-div{color:var(--green);} .dot-spec{color:var(--amber);}
+
+  /* How we're doing */
+  .summary-text{font-size:13.5px;line-height:1.55;color:var(--text-dim);margin:0 0 14px;}
+  .outlook-opt{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:11px 12px;border:1px solid var(--border-soft);border-radius:var(--radius-sm);margin-bottom:8px;
+  }
+  .outlook-opt .otext{font-size:13px;font-weight:550;}
+  .outlook-opt button{
+    background:var(--accent-soft);color:var(--accent-2);border:none;border-radius:8px;padding:6px 11px;font-size:12px;font-weight:650;
+  }
+
+  /* Banner */
+  .banner{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--amber-soft);border:1px solid rgba(224,163,54,.3);border-radius:var(--radius-md);
+    padding:12px 14px;margin-bottom:14px;
+  }
+  .banner .btext{font-size:13px;font-weight:600;color:#f0c874;}
+  .banner button{background:var(--amber);color:#1a1305;border:none;border-radius:8px;padding:8px 12px;font-size:12.5px;font-weight:700;white-space:nowrap;}
+
+  /* Buttons */
+  .btn{border-radius:12px;padding:12px 16px;font-size:14px;font-weight:650;border:1px solid var(--border);background:var(--surface-2);color:var(--text);width:100%;}
+  .btn-primary{background:var(--accent);border-color:var(--accent);color:#fff;}
+  .btn-primary:disabled{opacity:.4;}
+  .btn-ghost{background:transparent;}
+  .btn-danger{background:var(--red-soft);border-color:rgba(240,85,74,.3);color:var(--red);}
+  .btn-row{display:flex;gap:10px;}
+
+  /* Bottom nav */
+  .nav-bottom{
+    position:fixed;bottom:0;left:0;right:0;max-width:520px;margin:0 auto;
+    background:rgba(10,10,15,.92);backdrop-filter:blur(14px);border-top:1px solid var(--border);
+    display:flex;padding:9px 6px calc(env(safe-area-inset-bottom,0) + 8px);z-index:40;
+  }
+  .nav-bottom button{
+    flex:1;background:none;border:none;display:flex;flex-direction:column;align-items:center;gap:3px;
+    color:var(--text-dim);font-size:10.5px;font-weight:700;padding:7px 4px;margin:0 3px;border-radius:12px;
+    transition:background .15s,color .15s;
+  }
+  .nav-bottom button .ic{font-size:20px;}
+  .nav-bottom button.active{color:var(--accent-2);background:var(--accent-soft);}
+  @media (min-width:900px){
+    .nav-bottom{position:sticky;top:0;max-width:none;flex-direction:column;height:100vh;border-top:none;border-right:1px solid var(--border);padding:22px 12px;background:var(--bg);}
+    .nav-bottom button{flex:none;flex-direction:row;justify-content:flex-start;gap:10px;padding:11px 12px;font-size:13.5px;margin:0 0 4px;}
+  }
+
+  /* Forms */
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;font-weight:650;color:var(--text-dim);margin-bottom:6px;}
+  .field input[type=text], .field input[type=number], .field input[type=date], .field input[type=password],
+  .field select, .field textarea{
+    width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
+    padding:11px 12px;color:var(--text);font-size:14px;
+  }
+  .field textarea{min-height:70px;resize:vertical;}
+  .field .hint{font-size:11.5px;color:var(--text-faint);margin-top:5px;}
+  /* Standalone .hint (outside a .field) needs its own rule too — without this,
+     every hint-classed paragraph not nested in a form field falls through to
+     plain default text (larger, brighter) instead of the small dim caption
+     style it was meant to have. */
+  .hint{font-size:11.5px;color:var(--text-faint);}
+  /* Substantive explanatory paragraphs — same treatment everywhere, distinct from
+     the small .hint captions used for field-level notes and transient status text. */
+  .explainer{font-size:13.5px;line-height:1.6;color:var(--text-dim);}
+  .field-row{display:flex;gap:10px;}
+  .field-row .field{flex:1;}
+
+  /* Stepper */
+  .stepper-head{display:flex;gap:6px;margin-bottom:16px;}
+  .stepper-head .seg{flex:1;height:4px;border-radius:2px;background:var(--surface-3);}
+  .stepper-head .seg.done{background:var(--accent);}
+
+  /* Positions table */
+  .pos-row{display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border-soft);}
+  .pos-row:last-child{border-bottom:none;}
+  .pos-left{display:flex;align-items:center;gap:11px;}
+  .pos-badge{width:36px;height:36px;border-radius:10px;background:var(--surface-3);display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:750;color:var(--text-dim);}
+  .pos-name{font-size:13.5px;font-weight:650;}
+  .pos-sub{font-size:11.5px;color:var(--text-faint);margin-top:1px;}
+  .pos-right{text-align:right;}
+  .pos-val{font-family:var(--font-num);font-size:13.5px;font-weight:650;}
+  .pos-delta{font-size:11.5px;font-weight:650;margin-top:1px;}
+
+  .tabs2{display:flex;gap:6px;margin-bottom:14px;}
+  .tabs2 button{flex:1;padding:9px 0;border-radius:10px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);font-size:12.5px;font-weight:650;}
+  .tabs2 button.active{background:var(--accent-soft);color:var(--accent-2);border-color:rgba(59,130,246,.35);}
+
+  .taxline{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-soft);font-size:13px;}
+  .taxline:last-child{border-bottom:none;}
+  .flag{font-size:10.5px;background:var(--amber-soft);color:var(--amber);padding:2px 7px;border-radius:6px;font-weight:650;margin-left:6px;}
+
+  .exempt-ring-wrap{display:flex;align-items:center;gap:16px;margin:6px 0 10px;}
+  .exempt-figs .big{font-size:20px;font-weight:750;font-family:var(--font-num);}
+  .exempt-figs .small{font-size:12px;color:var(--text-dim);margin-top:2px;}
+
+  /* Learn */
+  .learn-cat{margin-bottom:10px;border:1px solid var(--border);border-radius:var(--radius-md);overflow:hidden;}
+  .learn-cat-head{display:flex;justify-content:space-between;align-items:center;padding:14px 16px;cursor:pointer;background:var(--surface);}
+  .learn-cat h3{font-size:13.5px;color:var(--text);font-weight:700;}
+  .learn-cat-arrow{color:var(--text-faint);font-size:16px;transition:transform .15s;}
+  .learn-cat-arrow.open{transform:rotate(90deg);color:var(--accent-2);}
+  [data-learnbody]{padding:0 12px 12px;}
+  details.entry{border:1px solid var(--border-soft);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:8px;background:var(--surface-2);}
+  details.entry summary{font-size:13.5px;font-weight:650;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;}
+  details.entry summary::-webkit-details-marker{display:none;}
+  details.entry summary:after{content:'+';color:var(--text-faint);font-size:16px;font-weight:400;}
+  details.entry[open] summary:after{content:'–';}
+  details.entry p{font-size:13.5px;color:var(--text-dim);line-height:1.6;margin:10px 0 0;}
+
+  /* PIN screen */
+  .pin-screen{min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;padding:20px;}
+  .pin-dots{display:flex;gap:14px;}
+  .pin-dots i{width:13px;height:13px;border-radius:50%;border:1.5px solid var(--text-faint);display:block;}
+  .pin-dots i.filled{background:var(--accent);border-color:var(--accent);}
+  .pin-pad{display:grid;grid-template-columns:repeat(3,64px);gap:14px;}
+  .pin-pad button{width:64px;height:64px;border-radius:50%;background:var(--surface);border:1px solid var(--border);color:var(--text);font-size:20px;font-weight:650;}
+  .pin-pad button:active{background:var(--surface-3);}
+  .pin-title{font-size:16px;font-weight:700;}
+  .pin-sub{font-size:12.5px;color:var(--text-faint);margin-top:-10px;}
+
+  .center-col{display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .setup-scroll{padding:20px 20px 40px;}
+
+  .chip-select{display:flex;flex-wrap:wrap;gap:8px;}
+  .chip-select button{padding:8px 13px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);font-size:12.5px;font-weight:650;}
+  .chip-select button.active{background:var(--accent-soft);color:var(--accent-2);border-color:rgba(59,130,246,.4);}
+
+  h1,h2,h3{margin:0;}
+  .page-title{font-size:20px;font-weight:750;letter-spacing:-0.01em;margin:6px 0 16px;}
+  .back-row{display:flex;align-items:center;gap:10px;margin:14px 0 4px;}
+  .back-row button{background:none;border:none;color:var(--text-dim);font-size:14px;font-weight:650;}
+  .empty-state{text-align:center;padding:40px 20px;color:var(--text-faint);font-size:13px;}
+
+  /* History / asset evolution timeline */
+  .evo-item{position:relative;padding-left:16px;padding-bottom:16px;border-left:2px solid var(--border-soft);margin-left:4px;}
+  .evo-item:last-child{padding-bottom:2px;}
+  .evo-item::before{content:'';position:absolute;left:-6px;top:2px;width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  .evo-item.is-sell::before{background:var(--red);}
+  .evo-item.is-dividend::before{background:var(--green);}
+  .evo-date{font-size:11.5px;color:var(--text-faint);}
+  .evo-line{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;}
+  .evo-running{font-size:11px;color:var(--text-faint);margin-top:3px;}
+  .evo-reason{font-size:12px;color:var(--text-dim);margin-top:3px;}
+
+  /* Dual-handle range slider for the export period picker */
+  .dual-range{position:relative;height:36px;margin:8px 0 4px;}
+  .dual-range .track-bg{position:absolute;top:16px;left:0;right:0;height:4px;background:var(--surface-3);border-radius:2px;}
+  .dual-range .track-fill{position:absolute;top:16px;height:4px;background:var(--accent);border-radius:2px;}
+  .dual-range input[type=range]{position:absolute;width:100%;top:8px;margin:0;background:transparent;-webkit-appearance:none;pointer-events:none;}
+  .dual-range input[type=range]::-webkit-slider-runnable-track{-webkit-appearance:none;background:transparent;}
+  .dual-range input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;pointer-events:auto;width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--accent);cursor:pointer;margin-top:0;}
+  .dual-range input[type=range]::-moz-range-track{background:transparent;}
+  .dual-range input[type=range]::-moz-range-thumb{pointer-events:auto;width:18px;height:18px;border-radius:50%;background:var(--accent);border:3px solid var(--bg);box-shadow:0 0 0 1px var(--accent);cursor:pointer;}
+  .range-preset-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px;}
+  .range-preset-row button{padding:6px 12px;border-radius:20px;border:1px solid var(--border);background:var(--surface);color:var(--text-dim);font-size:11.5px;font-weight:650;}
+  .range-preset-row button.active{background:var(--accent-soft);color:var(--accent-2);border-color:rgba(59,130,246,.4);}
+  .action-pill{border:1px solid var(--border);background:var(--surface-3);color:var(--text-dim);border-radius:8px;padding:6px 10px;font-size:11.5px;font-weight:700;display:inline-flex;align-items:center;gap:4px;white-space:nowrap;}
+  .action-pill:active{background:var(--surface-2);}
+</style>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+<div id="app"></div>
+
+<script>
+/* =========================================================================
+   LEDGER — family investment practice tracker
+   Single-file vanilla JS app. State persists to localStorage.
+   ========================================================================= */
+
+const AI_MODEL = 'claude-sonnet-4-6';
+const ASSET_TYPES = ['ETF','Stock','Bond','Metal','Crypto'];
+const BUCKETS = [
+  {id:'long', name:'Long-term', short:'Long-term', color:'dot-long', desc:'Lower-risk, broad diversification — built for compounding over your full horizon.'},
+  {id:'div',  name:'Balanced',  short:'Balanced',  color:'dot-div',  desc:'A middle ground — steadier picks like dividend payers, still with real risk attached.'},
+  {id:'spec', name:'Speculative', short:'Speculative', color:'dot-spec', desc:'Higher-risk, higher-volatility picks. Smallest slice, biggest swings.'},
+];
+
+// Tone profiles — a per-account style setting (not an age field) that shapes
+// how the "Read this" summary on Home talks to this account.
+// Reassurance is about the environment being safe to learn in; it never
+// means agreeing with a shaky plan just to be nice, in any of these.
+const TONE_PROFILES = {
+  direct: {
+    label: 'Direct',
+    instruction: "Talk like a sharp, straight-talking older friend — casual, confident, no fluff, comfortable with informal language ('yeah', 'honestly', 'here's the thing', a bit of bro energy) but never dumbed down. Treat him as someone who can handle real analysis and real pushback on a bad idea."
+  },
+  encouraging: {
+    label: 'Encouraging',
+    instruction: "Lead with warmth — this is a safe space to learn, mistakes are expected and are how you actually get better at this, and she has every right to be here making these calls herself. Be affirming and upbeat, like a coach who's genuinely glad she's in the game. At the same time, stay straightforward and honest about risk and trade-offs — the reassurance is about the environment being safe, never about agreeing with a shaky plan just to be nice."
+  },
+  neutral: {
+    label: 'Neutral',
+    instruction: 'Speak in a clear, approachable, straightforward tone — friendly but not overly casual, no forced slang.'
+  }
+};
+
+const uid = () => Math.random().toString(36).slice(2,10);
+const todayISO = () => new Date().toISOString().slice(0,10);
+const fmtEUR = (n) => (n<0?'-':'') + '€' + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct = (n) => (n>0?'+':'') + n.toFixed(1) + '%';
+
+/* ---------------------------- State ---------------------------- */
+function loadState(){
+  try{
+    const raw = localStorage.getItem('ledgerState');
+    if(raw) return JSON.parse(raw);
+  }catch(e){}
+  return null;
+}
+function saveState(){
+  try{
+    localStorage.setItem('ledgerState', JSON.stringify(S));
+  }catch(e){
+    console.error('Save failed', e);
+    alert("Couldn't save that change — your browser's storage may be full or restricted (e.g. private browsing mode). The change may not persist after closing the app.");
+  }
+}
+
+let S = loadState() || {
+  appPinSet:false, appPin:null,
+  unlocked:false,
+  profiles:[],
+  activeProfileId:null,
+  view:'home',
+  range:'ALL',
+  pinEntry:'',
+  setupStage:null, // 'profile' | 'plan' | null
+  draftProfile:null,
+  draftPlan:null,
+  contribDraft:null,
+  taxSubview:'asset',
+};
+
+function activeProfile(){ return S.profiles.find(p=>p.id===S.activeProfileId) || null; }
+
+/* ---------------------------- Domain math ---------------------------- */
+function bucketAmount(plan, bucketId){ return plan.buckets[bucketId] || 0; }
+
+function assetsFor(profile, bucketId){ return profile.assets.filter(a=>a.bucket===bucketId); }
+
+// Amount is the order value (what actually buys units); the fee is a separate
+// real cost on top, so it adds to cost basis rather than reducing units bought.
+function unitsFor(tx){ return tx.priceAtBuy>0 ? tx.amountEUR/tx.priceAtBuy : 0; }
+
+function currentPrice(profile, assetId){
+  const p = profile.prices[assetId];
+  if(p) return p.price;
+  const tx = profile.transactions.filter(t=>t.assetId===assetId).slice(-1)[0];
+  return tx ? (tx.priceAtBuy||tx.priceAtSell) : 0;
+}
+
+// Positions are built by replaying each asset's transactions in date order.
+// Buys add units and cost basis. Sells remove units and reduce cost basis using
+// the average-cost method (average cost per unit at the moment of the sale),
+// and record the realized gain/loss on that sale.
+function positionsFor(profile){
+  const map = {};
+  const sorted = profile.transactions.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  sorted.forEach(tx=>{
+    if(!map[tx.assetId]) map[tx.assetId] = {assetId:tx.assetId, costBasis:0, units:0, feesPaid:0, realizedGain:0, grossCostBasisEver:0, dividendsReceived:0, txs:[]};
+    const pos = map[tx.assetId];
+    pos.txs.push(tx);
+    pos.feesPaid += (tx.fee||0);
+    if(tx.type==='sell'){
+      const avgCost = pos.units>0 ? pos.costBasis/pos.units : 0;
+      const soldUnits = Math.min(tx.units||0, pos.units);
+      const costRemoved = avgCost*soldUnits;
+      const proceeds = soldUnits*(tx.priceAtSell||0) - (tx.fee||0);
+      const realizedGain = proceeds - costRemoved;
+      tx._costRemoved = costRemoved; tx._realizedGain = realizedGain; tx._proceeds = proceeds;
+      pos.units -= soldUnits;
+      pos.costBasis -= costRemoved;
+      pos.realizedGain += realizedGain;
+    } else if(tx.type==='dividend'){
+      pos.dividendsReceived += tx.amountEUR;
+    } else {
+      pos.costBasis += tx.amountEUR + (tx.fee||0);
+      pos.units += unitsFor(tx);
+      pos.grossCostBasisEver += tx.amountEUR + (tx.fee||0); // never reduced by later sells
+    }
+  });
+  return Object.values(map).map(pos=>{
+    const asset = profile.assets.find(a=>a.id===pos.assetId);
+    const price = currentPrice(profile, pos.assetId);
+    const value = Math.max(pos.units,0) * price;
+    const gain = value - pos.costBasis; // unrealized only, on what's still held
+    const gainPct = pos.costBasis>0 ? (gain/pos.costBasis*100) : 0;
+    // Total return: unrealized gain on what's left + profit already locked in via
+    // sells + any dividends received — the fuller picture of how this pick has
+    // actually done, not just what's still on paper.
+    const totalReturn = gain + pos.realizedGain + pos.dividendsReceived;
+    return {...pos, units:Math.max(pos.units,0), costBasis:Math.max(pos.costBasis,0), asset, price, value, gain, gainPct, totalReturn};
+  });
+}
+
+function bucketTotals(profile){
+  const out = {};
+  BUCKETS.forEach(b=>out[b.id] = {costBasis:0, value:0});
+  positionsFor(profile).forEach(pos=>{
+    if(!pos.asset) return;
+    out[pos.asset.bucket].costBasis += pos.costBasis;
+    out[pos.asset.bucket].value += pos.value;
+  });
+  return out;
+}
+
+function portfolioTotals(profile){
+  const positions = positionsFor(profile);
+  const costBasis = positions.reduce((s,p)=>s+p.costBasis,0);
+  const value = positions.reduce((s,p)=>s+p.value,0);
+  const feesPaid = positions.reduce((s,p)=>s+p.feesPaid,0);
+  const realizedGain = positions.reduce((s,p)=>s+p.realizedGain,0);
+  const dividendsReceived = positions.reduce((s,p)=>s+p.dividendsReceived,0);
+  const grossCostBasisEver = positions.reduce((s,p)=>s+p.grossCostBasisEver,0);
+  const unrealizedGain = value-costBasis;
+  // "gain"/"gainPct" here mean the true all-time return — unrealized gain on what's
+  // still held, PLUS profit already locked in from selling, PLUS dividends received.
+  // Using gross cost basis ever contributed (not just what's currently invested) as
+  // the denominator, since money that was sold off shouldn't drop out of the base
+  // just because it's no longer sitting in a position.
+  const gain = unrealizedGain + realizedGain + dividendsReceived;
+  const gainPct = grossCostBasisEver>0 ? (gain/grossCostBasisEver*100) : 0;
+  return {costBasis, value, feesPaid, realizedGain, dividendsReceived, grossCostBasisEver, unrealizedGain, gain, gainPct};
+}
+
+// The "invested so far" figure (Home, and the vs-savings comparison) is meant to
+// be the raw cash directed at buying assets — a clean principal figure comparable
+// to what would've gone into a savings account instead. Fees are a real cost for
+// gain/loss and tax purposes (see positionsFor/portfolioTotals' fee-inclusive cost
+// basis), but they're a friction specific to investing that a savings account
+// wouldn't have, so they're deliberately excluded here.
+function principalContributed(profile){
+  return profile.transactions
+    .filter(tx=>tx.type!=='sell' && tx.type!=='dividend')
+    .reduce((s,tx)=>s+tx.amountEUR, 0);
+}
+
+function savingsComparisonValue(profile){
+  // Monthly contributions compounding at profile.plan.savingsRate (annual %), monthly compounding.
+  // Counted per month you actually contributed — not calendar time elapsed — so the comparison
+  // shows up as soon as a purchase is logged, rather than waiting for a full month to pass.
+  // Floored at 1: the plan itself represents a first committed deposit, so this is never zero
+  // even before the first purchase is actually logged.
+  const plan = profile.plan;
+  if(!plan) return 0;
+  const monthlyRate = (plan.savingsRate/100)/12;
+  const months = Math.max(contributionMonthsCount(profile), 1);
+  let fv = 0;
+  for(let i=0;i<months;i++){
+    fv = (fv + plan.monthlyAmount) * (1+monthlyRate);
+  }
+  return fv;
+}
+
+function contributionMonthsCount(profile){
+  const seen = new Set();
+  profile.transactions.forEach(tx=>{
+    const d = new Date(tx.date);
+    seen.add(d.getFullYear()+'-'+d.getMonth());
+  });
+  return seen.size;
+}
+
+function monthsSince(isoDate){
+  const start = new Date(isoDate);
+  const now = new Date();
+  let months = (now.getFullYear()-start.getFullYear())*12 + (now.getMonth()-start.getMonth());
+  if(now.getDate() < start.getDate()) months -= 1;
+  return Math.max(0, months);
+}
+
+function goalProgress(plan){
+  const start = new Date(plan.startDate);
+  const end = new Date(start); end.setFullYear(end.getFullYear()+plan.horizonYears);
+  const now = new Date();
+  const totalMs = end-start;
+  const elapsedMs = Math.min(Math.max(now-start,0), totalMs);
+  const pct = totalMs>0 ? (elapsedMs/totalMs*100) : 0;
+  const remainMs = Math.max(end-now,0);
+  const remainDays = Math.floor(remainMs/86400000);
+  const years = Math.floor(remainDays/365);
+  const months = Math.floor((remainDays%365)/30);
+  return {pct, years, months, startDate:start, endDate:end};
+}
+
+function shortMonthYear(d){ return d.toLocaleDateString('en-US',{month:'short',year:'numeric'}); }
+
+function isContributionDueThisMonth(profile){
+  const plan = profile.plan;
+  if(!plan) return false;
+  const now = new Date();
+  const thisMonthKey = now.getFullYear()+'-'+now.getMonth();
+  // Only actual purchases count toward "the contribution was made" — a sell or a
+  // dividend landing in the current month shouldn't wrongly satisfy this.
+  const buys = profile.transactions.filter(tx=>tx.type!=='sell' && tx.type!=='dividend');
+  const lastBuy = buys.slice().sort((a,b)=>a.date.localeCompare(b.date)).slice(-1)[0];
+  if(!lastBuy) return true;
+  const lastDate = new Date(lastBuy.date);
+  const lastKey = lastDate.getFullYear()+'-'+lastDate.getMonth();
+  return lastKey !== thisMonthKey;
+}
+
+/* ---------------------------- Tax (Belgium, 2026 regime) ---------------------------- */
+const TAX_RATE = 0.10;
+const REYNDERS_RATE = 0.30;
+const DEFAULT_EXEMPTION = 10000;
+
+// Shared tax split: how much of a gain is taxable outright vs. subject to the
+// Reynders tax (bond-fund interest portion, taxed separately at 30%).
+function assetTaxOnGain(asset, gain){
+  if(!asset || gain<=0) return {taxableGain:Math.max(gain||0,0), reyndersPortion:0, reyndersTax:0, note:null};
+  if(asset.type==='Bond' && asset.reyndersPct>0){
+    const reyndersPortion = gain * (asset.reyndersPct/100);
+    const residual = gain - reyndersPortion;
+    return {
+      taxableGain: residual,
+      reyndersPortion,
+      reyndersTax: reyndersPortion*REYNDERS_RATE,
+      note: `Reynders tax applies to ~${asset.reyndersPct}% (interest-bearing portion)`
+    };
+  }
+  return {taxableGain:gain, reyndersPortion:0, reyndersTax:0, note:null};
+}
+
+function assetTax(profile, pos){
+  return assetTaxOnGain(pos.asset, pos.gain);
+}
+
+// Sums realized gain/loss from sells of one asset within a single calendar year —
+// Belgium's exemption resets every year, so lumping every sell ever made together
+// against one €10,000 allowance would be wrong from year two onward.
+function realizedGainInYear(profile, assetId, year){
+  return computeAssetEvolution(profile, assetId)
+    .filter(ev=>ev.tx.type==='sell' && new Date(ev.tx.date).getFullYear()===year)
+    .reduce((s,ev)=>s+ev.realizedGain, 0);
+}
+
+// Same split as assetTax, applied to a position's REALIZED gain within a given
+// calendar year (from completed sells) rather than its unrealized (mark-to-market)
+// gain — this is the figure that's actually taxable, scoped to the right tax year.
+function assetTaxRealized(profile, pos, year){
+  const yearGain = realizedGainInYear(profile, pos.assetId, year ?? new Date().getFullYear());
+  return assetTaxOnGain(pos.asset, yearGain);
+}
+
+function householdTaxSummary(){
+  const year = new Date().getFullYear();
+  let realizedGain = 0, realizedReynders = 0;
+  let unrealizedGain = 0, unrealizedReynders = 0;
+  S.profiles.forEach(profile=>{
+    positionsFor(profile).forEach(pos=>{
+      if(!pos.asset) return;
+      if(pos.gain>0){
+        const t = assetTax(profile,pos);
+        unrealizedGain += Math.max(t.taxableGain,0);
+        unrealizedReynders += t.reyndersTax;
+      }
+      const rt = assetTaxRealized(profile,pos,year);
+      if(rt.taxableGain>0 || rt.reyndersTax>0){
+        realizedGain += Math.max(rt.taxableGain,0);
+        realizedReynders += rt.reyndersTax;
+      }
+    });
+  });
+  const exemption = S.exemptionAmount || DEFAULT_EXEMPTION;
+  const taxableAboveExemption = Math.max(realizedGain - exemption, 0);
+  const estTax = taxableAboveExemption*TAX_RATE + realizedReynders;
+  return {
+    year, realizedGain, realizedReynders, exemption, taxableAboveExemption, estTax,
+    unrealizedGain, unrealizedReynders,
+    // kept for anything still reading the old shape
+    totalGain: realizedGain, reyndersTotal: realizedReynders
+  };
+}
+
+/* ---------------------------- Rendering ---------------------------- */
+const app = document.getElementById('app');
+
+function render(){
+  if(!S.profiles.length || S.setupStage){ renderOnboarding(); return; }
+  if(S.appPinSet && !S.unlocked){ renderPinLock(); return; }
+  const p = activeProfile();
+  if(!p && S.activeProfileId!=='FAMILY'){ S.activeProfileId = S.profiles[0].id; saveState(); }
+  if(S.view!=='positions') S.historyEditMode = false; // leaving Assets always closes correcting mode
+  renderShell();
+}
+
+function isFamilyView(){ return S.activeProfileId==='FAMILY'; }
+
+function h(strings, ...vals){ return strings.reduce((a,s,i)=>a+s+(vals[i]??''),''); }
+
+/* ---- PIN lock ---- */
+function renderPinLock(){
+  const entry = S.pinEntry||'';
+  app.innerHTML = `
+    <div class="pin-screen">
+      <div class="center-col">
+        <div class="brand" style="justify-content:center;margin-bottom:8px;"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span> DIY Fund</div>
+        <div class="pin-title">Enter PIN</div>
+      </div>
+      <div class="pin-dots">
+        ${[0,1,2,3].map(i=>`<i class="${i<entry.length?'filled':''}"></i>`).join('')}
+      </div>
+      <div class="pin-pad">
+        ${[1,2,3,4,5,6,7,8,9].map(n=>`<button data-pin="${n}">${n}</button>`).join('')}
+        <button data-pin="clear" style="visibility:hidden"></button>
+        <button data-pin="0">0</button>
+        <button data-pin="back">⌫</button>
+      </div>
+    </div>`;
+  app.querySelectorAll('[data-pin]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const k = btn.dataset.pin;
+      if(k==='back'){ S.pinEntry = entry.slice(0,-1); render(); return; }
+      if(entry.length>=4) return;
+      const next = entry+k;
+      S.pinEntry = next;
+      if(next.length===4){
+        if(next===S.appPin){ S.unlocked=true; S.pinEntry=''; saveState(); render(); }
+        else { setTimeout(()=>{ S.pinEntry=''; render(); }, 350); render(); }
+      } else render();
+    };
+  });
+}
+
+/* ---- Onboarding (profile + plan setup) ---- */
+function renderOnboarding(){
+  if(!S.setupStage) S.setupStage = 'welcome';
+  if(S.setupStage==='welcome') return renderWelcome();
+  if(S.setupStage==='profile') return renderProfileSetup();
+  if(S.setupStage==='plan') return renderPlanSetup();
+}
+
+function renderWelcome(){
+  app.innerHTML = `
+  <div class="pin-screen">
+    <div class="center-col">
+      <div class="brand" style="justify-content:center;margin-bottom:14px;font-size:22px;"><span class="mark" style="width:34px;height:34px;"><i style="height:40%;width:5px"></i><i style="height:70%;width:5px"></i><i style="height:55%;width:5px"></i></span> DIY Fund</div>
+      <p style="color:var(--text-dim);font-size:14px;max-width:280px;line-height:1.6;">A private family investment practice tracker. Set up the first account to begin.</p>
+    </div>
+    <div style="width:100%;max-width:280px;">
+      <button class="btn btn-primary" id="start-btn">Set up first account</button>
+    </div>
+  </div>`;
+  document.getElementById('start-btn').onclick = ()=>{
+    S.draftProfile = {name:'', pin:''};
+    S.setupStage = 'profile';
+    render();
+  };
+}
+
+function renderProfileSetup(){
+  const d = S.draftProfile;
+  if(!d.tone) d.tone = 'neutral';
+  app.innerHTML = `
+    <div class="setup-scroll">
+      <div class="page-title">Who's this account for?</div>
+      <div class="field">
+        <label>Name</label>
+        <input type="text" id="pname" value="${d.name}" placeholder="e.g. Mom, Leo, Mira" />
+      </div>
+      <div class="field">
+        <label>4-digit PIN (optional — separates this account from others)</label>
+        <input type="password" id="ppin" maxlength="4" inputmode="numeric" value="${d.pin}" placeholder="Leave blank to skip" />
+      </div>
+      <div class="field">
+        <label>Tone</label>
+        <div class="chip-select" id="tone-select">
+          ${Object.entries(TONE_PROFILES).map(([key,t])=>`<button data-tone="${key}" class="${d.tone===key?'active':''}">${t.label}</button>`).join('')}
+        </div>
+        <div class="hint">Shapes how the "Read this" summary talks to this account — change it anytime in Settings.</div>
+      </div>
+      <button class="btn btn-primary" id="next-btn" ${d.name?'':'disabled'}>Continue</button>
+    </div>`;
+  document.getElementById('pname').oninput = (e)=>{ d.name=e.target.value; document.getElementById('next-btn').disabled=!d.name; };
+  document.getElementById('ppin').oninput = (e)=>{ d.pin=e.target.value.replace(/\D/g,'').slice(0,4); };
+  document.querySelectorAll('#tone-select [data-tone]').forEach(b=>{
+    b.onclick = ()=>{ d.tone=b.dataset.tone; renderProfileSetup(); };
+  });
+  document.getElementById('next-btn').onclick = ()=>{
+    if(!d.name) return;
+    S.draftPlan = {
+      goalName:'', horizonYears:3, startDate: todayISO(), monthlyAmount:100,
+      buckets:{long:50, div:25, spec:25}, savingsRate:2.0, defaultFeePct:0
+    };
+    S.setupStage = 'plan';
+    render();
+  };
+}
+
+function renderPlanSetup(){
+  const d = S.draftPlan;
+  const sum = d.buckets.long + d.buckets.div + d.buckets.spec;
+  const valid = d.goalName && sum===d.monthlyAmount;
+  app.innerHTML = `
+    <div class="setup-scroll">
+      <div class="page-title">Set the investment plan</div>
+      <div class="field">
+        <label>Goal name</label>
+        <input type="text" id="gname" value="${d.goalName}" placeholder="e.g. House deposit fund" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Horizon (years)</label>
+          <input type="number" id="ghoriz" value="${d.horizonYears}" min="1" max="20" />
+        </div>
+        <div class="field">
+          <label>Start date</label>
+          <input type="date" id="gstart" value="${d.startDate}" />
+        </div>
+      </div>
+      <div class="field">
+        <label>Monthly amount (€)</label>
+        <input type="number" id="gmonthly" value="${d.monthlyAmount}" min="10" step="10" />
+      </div>
+      <div class="field">
+        <label>Bucket split (must sum to monthly amount)</label>
+        <div class="field-row">
+          <div class="field"><label style="color:var(--accent-2)">Long-term</label><input type="number" id="blong" value="${d.buckets.long}" /></div>
+          <div class="field"><label style="color:var(--green)">Dividend</label><input type="number" id="bdiv" value="${d.buckets.div}" /></div>
+          <div class="field"><label style="color:var(--amber)">Speculative</label><input type="number" id="bspec" value="${d.buckets.spec}" /></div>
+        </div>
+        <div class="hint" id="sumhint">Sum: €${sum} of €${d.monthlyAmount}</div>
+      </div>
+      <div class="field">
+        <label>Savings-account benchmark rate (% annual)</label>
+        <input type="number" id="gsavings" value="${d.savingsRate}" step="0.1" />
+        <div class="hint">Best Belgian regulated savings accounts run roughly 2–2.9% as of 2026. Locked in at your plan's start date, editable anytime in Settings.</div>
+      </div>
+      <div class="field">
+        <label>Default broker fee (%)</label>
+        <input type="number" id="gfee" value="${d.defaultFeePct}" step="0.05" />
+        <div class="hint">Pre-fills the fee on each contribution — varies by broker and instrument, so double-check against your actual account. Editable per contribution.</div>
+      </div>
+      <button class="btn btn-primary" id="finish-btn" ${valid?'':'disabled'}>Create plan</button>
+    </div>`;
+
+  function refresh(){
+    const sum2 = d.buckets.long + d.buckets.div + d.buckets.spec;
+    document.getElementById('sumhint').textContent = `Sum: €${sum2} of €${d.monthlyAmount}`;
+    document.getElementById('sumhint').style.color = sum2===d.monthlyAmount ? 'var(--text-faint)' : 'var(--red)';
+    document.getElementById('finish-btn').disabled = !(d.goalName && sum2===d.monthlyAmount);
+  }
+  document.getElementById('gname').oninput = e=>{ d.goalName=e.target.value; refresh(); };
+  document.getElementById('ghoriz').oninput = e=>{ d.horizonYears=+e.target.value; };
+  document.getElementById('gstart').oninput = e=>{ d.startDate=e.target.value; };
+  document.getElementById('gmonthly').oninput = e=>{ d.monthlyAmount=+e.target.value; refresh(); };
+  document.getElementById('blong').oninput = e=>{ d.buckets.long=+e.target.value; refresh(); };
+  document.getElementById('bdiv').oninput = e=>{ d.buckets.div=+e.target.value; refresh(); };
+  document.getElementById('bspec').oninput = e=>{ d.buckets.spec=+e.target.value; refresh(); };
+  document.getElementById('gsavings').oninput = e=>{ d.savingsRate=+e.target.value; };
+  document.getElementById('gfee').oninput = e=>{ d.defaultFeePct=+e.target.value; };
+
+  document.getElementById('finish-btn').onclick = ()=>{
+    const id = uid();
+    S.profiles.push({
+      id, name:S.draftProfile.name, pin:S.draftProfile.pin||null, tone:S.draftProfile.tone||'neutral',
+      plan:{...d}, assets:[], transactions:[], prices:{}
+    });
+    S.activeProfileId = id;
+    S.draftProfile=null; S.draftPlan=null; S.setupStage=null;
+    if(S.profiles.length===1 && !S.appPinSet){
+      // offer app-level pin later via settings; skip forcing now
+    }
+    saveState();
+    render();
+  };
+}
+
+/* ---- Shell + nav ---- */
+function renderShell(){
+  const desktop = window.innerWidth>=900;
+  app.innerHTML = `
+    <nav class="nav-bottom" id="nav"></nav>
+    <div>
+      <div class="topbar" id="topbar"></div>
+      <main id="main"></main>
+    </div>`;
+  renderNav();
+  renderTopbar();
+  renderView();
+}
+
+function renderNav(){
+  const fam = isFamilyView();
+  const items = [
+    {id:'home', ic:'⌂', label:'Home'},
+    {id:'positions', ic:'▤', label:'Activity'},
+    {id:'learn', ic:'◎', label:'Learn'},
+    {id:'tax', ic:'§', label:'Tax'},
+  ];
+  const nav = document.getElementById('nav');
+  nav.innerHTML = items.map(it=>`
+    <button data-nav="${it.id}" class="${S.view===it.id?'active':''}" style="${it.disabled?'opacity:.35;':''}">
+      <span class="ic">${it.ic}</span><span>${it.label}</span>
+    </button>`).join('');
+  nav.querySelectorAll('[data-nav]').forEach((b,i)=>{
+    b.onclick = ()=>{
+      if(items[i].disabled){ alert('Switch to an individual account to see this — it needs one person\'s own transactions.'); return; }
+      S.view=b.dataset.nav; render();
+    };
+  });
+}
+
+function renderTopbar(){
+  const p = activeProfile();
+  const fam = isFamilyView();
+  const initials = fam ? '👪' : p.name.slice(0,2).toUpperCase();
+  const label = fam ? 'Family' : p.name;
+  const bar = document.getElementById('topbar');
+  bar.innerHTML = `
+    <div class="brand"><span class="mark"><i style="height:40%"></i><i style="height:70%"></i><i style="height:55%"></i></span>DIY Fund</div>
+    <div class="topbar-actions">
+      <div class="profile-switch" id="profile-switch"><span class="avatar">${initials}</span>${label} ▾</div>
+      <button class="icon-btn" id="settings-btn">⚙</button>
+    </div>`;
+  document.getElementById('profile-switch').onclick = ()=>{ S.view='switch'; render(); };
+  document.getElementById('settings-btn').onclick = ()=>{ S.view='settings'; render(); };
+}
+
+function renderView(){
+  const main = document.getElementById('main');
+  const p = activeProfile();
+  const profileRequired = ['contribute','sell','dividend','register-choice','edit-tx'];
+  if(!p && profileRequired.includes(S.view)){ S.view='home'; }
+  if(S.view==='switch') return renderSwitchProfile(main);
+  if(S.view==='settings') return renderSettings(main, p);
+  if(S.view==='contribute') return renderContributeFlow(main, p);
+  if(S.view==='sell') return renderSellFlow(main, p);
+  if(S.view==='dividend') return renderDividendFlow(main, p);
+  if(S.view==='register-choice') return renderRegisterChoice(main, p);
+  if(S.view==='edit-tx') return renderEditTransaction(main, p);
+  if(S.view==='home') return p ? renderHome(main, p) : renderFamilyHome(main);
+  if(S.view==='positions') return p ? renderPositions(main, p) : renderFamilyPositions(main);
+  if(S.view==='export') return renderExport(main);
+  if(S.view==='learn') return renderLearn(main);
+  if(S.view==='tax') return renderTax(main, p);
+}
+
+/* ---- Switch profile ---- */
+function renderSwitchProfile(main){
+  main.innerHTML = `
+    <div class="page-title">Switch account</div>
+    <div class="stack">
+      ${S.profiles.map(p=>`
+        <div class="card card-sm row" data-pick="${p.id}" style="cursor:pointer;">
+          <div class="row" style="gap:11px;">
+            <span class="avatar" style="width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent-2);display:flex;align-items:center;justify-content:center;font-weight:700;">${p.name.slice(0,2).toUpperCase()}</span>
+            <div>
+              <div style="font-weight:650;font-size:14px;">${p.name}</div>
+              <div style="font-size:11.5px;color:var(--text-faint);">${p.plan?p.plan.goalName:'No plan yet'}</div>
+            </div>
+          </div>
+          <span style="color:var(--text-faint);">${p.id===S.activeProfileId?'✓':''}</span>
+        </div>`).join('')}
+      ${S.profiles.length>=2?`
+      <div class="card card-sm row" data-pick="FAMILY" style="cursor:pointer;border-color:rgba(59,130,246,.35);">
+        <div class="row" style="gap:11px;">
+          <span class="avatar" style="width:34px;height:34px;border-radius:10px;background:var(--accent-soft);color:var(--accent-2);display:flex;align-items:center;justify-content:center;font-weight:700;">👪</span>
+          <div>
+            <div style="font-weight:650;font-size:14px;">Family</div>
+            <div style="font-size:11.5px;color:var(--text-faint);">Combined view across everyone</div>
+          </div>
+        </div>
+        <span style="color:var(--text-faint);">${isFamilyView()?'✓':''}</span>
+      </div>`:''}
+      ${S.profiles.length<5?`<button class="btn" id="add-profile">+ Add family member</button>`:''}
+    </div>`;
+  main.querySelectorAll('[data-pick]').forEach(el=>{
+    el.onclick = ()=>{
+      if(el.dataset.pick==='FAMILY'){
+        S.activeProfileId = 'FAMILY'; S.view='home'; saveState(); render(); return;
+      }
+      const target = S.profiles.find(p=>p.id===el.dataset.pick);
+      if(target.pin){
+        S.pendingSwitchId = target.id;
+        S.view = 'switchpin'; S.pinEntry='';
+        render(); return;
+      }
+      S.activeProfileId = target.id; S.view='home'; saveState(); render();
+    };
+  });
+  if(S.profiles.length<5){
+    document.getElementById('add-profile').onclick = ()=>{
+      S.draftProfile = {name:'', pin:''};
+      S.setupStage = 'profile';
+      render();
+    };
+  }
+}
+
+/* ---- Settings ---- */
+function renderSettings(main, p){
+  main.innerHTML = `
+    <div class="page-title">Settings</div>
+    <div class="card card-sm">
+      <div class="card-title">App lock</div>
+      <div class="row" style="margin-bottom:8px;">
+        <span style="font-size:13.5px;">App PIN ${S.appPinSet?'enabled':'disabled'}</span>
+        <button class="btn" style="width:auto;padding:8px 12px;" id="toggle-app-pin">${S.appPinSet?'Turn off':'Set PIN'}</button>
+      </div>
+      <div class="hint">Separate from each account's own optional PIN.</div>
+    </div>
+    <div class="card card-sm">
+      <div class="card-title">Household tax exemption</div>
+      <div class="field" style="margin-bottom:0;">
+        <label>Annual exemption (€) — combined across all accounts</label>
+        <input type="number" id="exempt-input" value="${S.exemptionAmount||DEFAULT_EXEMPTION}" />
+        <div class="hint">Belgium's 2026 capital-gains regime exempts the first €10,000 of gains per person, per year, indexed annually.</div>
+      </div>
+    </div>
+    ${p ? `
+    <div class="card card-sm">
+      <div class="card-title">Tone — ${p.name}</div>
+      <div class="chip-select" id="tone-select-settings">
+        ${Object.entries(TONE_PROFILES).map(([key,t])=>`<button data-tone="${key}" class="${(p.tone||'neutral')===key?'active':''}">${t.label}</button>`).join('')}
+      </div>
+    </div>
+    <div class="card card-sm">
+      <div class="card-title">This account's plan</div>
+      <div class="hint" style="margin-bottom:10px;">Editing the plan won't rewrite past contributions.</div>
+      <div class="field"><label>Savings benchmark rate (%)</label><input type="number" id="rate-input" step="0.1" value="${p.plan.savingsRate}" /></div>
+      <div class="field"><label>Default broker fee (%)</label><input type="number" id="fee-rate-input" step="0.05" value="${p.plan.defaultFeePct||0}" /></div>
+    </div>` : `
+    <div class="card card-sm">
+      <p class="hint" style="margin:0;">You're viewing the Family account — tone and plan settings are per-person. Switch to an individual account to adjust those.</p>
+    </div>`}
+    <div class="card card-sm">
+      <div class="card-title">Anthropic API key</div>
+      <div class="field" style="margin-bottom:6px;">
+        <input type="password" id="api-key-input" value="${S.anthropicApiKey||''}" placeholder="sk-ant-..." />
+      </div>
+      <p class="explainer" style="margin:0;">Needed once this app is hosted outside Claude's own preview — powers live price lookups for non-crypto assets (stocks, ETFs, bonds, metals). Get one at <b>console.anthropic.com</b>. Stored only on this device. Since it's visible in this page's source code, keep the hosted URL private rather than sharing it publicly.</p>
+    </div>
+    <div class="card card-sm">
+      <div class="card-title">Hosting this app</div>
+      <p class="explainer" style="margin:0;">For the full installed-app experience (home-screen icon, offline shell, standalone window) on iPhone or Android, this needs to be hosted (even simple static hosting like GitHub Pages or Netlify works). Opened as a local file, most features still work but iOS will use a page screenshot instead of the app icon.</p>
+    </div>
+    <button class="btn btn-ghost" id="back-home">Done</button>
+  `;
+  document.getElementById('toggle-app-pin').onclick = ()=>{
+    if(S.appPinSet){ S.appPinSet=false; S.appPin=null; saveState(); render(); }
+    else{ S.view='setapppin'; S.pinEntry=''; render(); }
+  };
+  document.getElementById('exempt-input').onchange = e=>{ S.exemptionAmount=+e.target.value; saveState(); };
+  document.getElementById('api-key-input').onchange = e=>{ S.anthropicApiKey=e.target.value.trim(); saveState(); };
+  if(p){
+    document.getElementById('rate-input').onchange = e=>{ p.plan.savingsRate=+e.target.value; saveState(); };
+    document.getElementById('fee-rate-input').onchange = e=>{ p.plan.defaultFeePct=+e.target.value; saveState(); };
+    document.querySelectorAll('#tone-select-settings [data-tone]').forEach(b=>{
+      b.onclick = ()=>{ p.tone=b.dataset.tone; saveState(); render(); };
+    });
+  }
+  document.getElementById('back-home').onclick = ()=>{ S.view='home'; render(); };
+}
+
+/* ---- Home ---- */
+function renderHome(main, p){
+  if(!p.plan){ main.innerHTML = `<div class="empty-state">No plan set up yet.</div>`; return; }
+  const gp = goalProgress(p.plan);
+  const totals = portfolioTotals(p);
+  const bTotals = bucketTotals(p);
+  const savingsVal = savingsComparisonValue(p);
+  const ahead = totals.value - savingsVal;
+  const due = isContributionDueThisMonth(p);
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="goal-head">
+        <div>
+          <div class="goal-name">${p.plan.goalName}</div>
+          <div class="goal-count">${gp.years}y ${gp.months}m remaining of ${p.plan.horizonYears}y</div>
+        </div>
+      </div>
+      <div class="timeline-track">
+        <div class="timeline-fill" style="width:${Math.min(gp.pct,100)}%"></div>
+        <div class="timeline-marker" style="left:${Math.min(Math.max(gp.pct,3),97)}%">
+          <div class="timeline-marker-label">Today</div>
+        </div>
+      </div>
+      <div class="timeline-dates">
+        <span>${shortMonthYear(gp.startDate)}</span>
+        <span>${shortMonthYear(gp.endDate)}</span>
+      </div>
+      <div class="goal-figs" style="margin-top:10px;">
+        <span>Invested so far <b>${fmtEUR(principalContributed(p))}</b></span>
+        <span>On pace for (projection) <b class="num" style="font-size:12px;font-weight:600;color:var(--text-faint);">${fmtEUR(projectOnPace(p))}</b></span>
+      </div>
+      ${totals.dividendsReceived>0?`<div class="goal-figs" style="margin-top:6px;">
+        <span>Dividends earned <b class="num" style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></span>
+      </div>`:''}
+    </div>
+
+    ${due?`<div class="banner"><span class="btext">Contribution due — ${monthName()}</span></div>`:''}
+    <button class="btn btn-primary" id="register-tx-btn" style="margin-bottom:14px;">+ Register transaction</button>
+
+    <div class="card">
+      <div class="hero-value">${fmtEUR(totals.value)}</div>
+      <div class="hero-delta ${totals.gain>0?'delta-up':totals.gain<0?'delta-down':'delta-flat'}">
+        ${totals.gain>=0?'▲':'▼'} ${fmtEUR(Math.abs(totals.gain))} (${fmtPct(totals.gainPct)}) all-time
+      </div>
+      <div class="price-meta">${lastPriceMeta(p)} — <span class="refresh-link" id="refresh-prices">refresh</span></div>
+      ${S.priceRefreshNote?`<div class="price-meta" style="color:var(--amber);margin-top:4px;">${escapeHTML(S.priceRefreshNote)}</div>`:''}
+      <div class="range-tabs">
+        ${['1M','3M','6M','1Y','ALL'].map(r=>`<button data-range="${r}" class="${S.range===r?'active':''}">${r}</button>`).join('')}
+      </div>
+      <canvas class="chart" id="chart"></canvas>
+      <div class="savings-compare-block">
+        <div class="row">
+          <span class="label">If you'd put €${p.plan.monthlyAmount}/month in savings instead (${p.plan.savingsRate}%)</span>
+        </div>
+        <div class="row" style="margin-top:4px;">
+          <span class="num" style="font-size:16px;font-weight:700;">${fmtEUR(savingsVal)}</span>
+          <span class="val ${ahead>=0?'delta-up':'delta-down'}">${ahead>=0?'You\'re ahead by ':'You\'re behind by '}${fmtEUR(Math.abs(ahead))}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="bucket-grid">
+      ${BUCKETS.map(b=>{
+        const bt = bTotals[b.id];
+        const g = bt.value-bt.costBasis;
+        const gp2 = bt.costBasis>0? (g/bt.costBasis*100):0;
+        const shareOfTotal = totals.value>0 ? (bt.value/totals.value*100) : 0;
+        return `<div class="bucket-chip">
+          <div class="bname ${b.color}">${b.short} · ${shareOfTotal.toFixed(0)}%</div>
+          <div class="bval">${fmtEUR(bt.value)}</div>
+          <div class="bdelta ${g>=0?'delta-up':'delta-down'}">${fmtPct(gp2)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    ${buildAssetSlices(positionsFor(p)).length ? `
+    <div class="card">
+      <div class="card-title">Your Mix</div>
+      <div style="display:flex;gap:18px;align-items:center;">
+        <canvas id="diversify-chart" style="width:110px;height:110px;flex-shrink:0;"></canvas>
+        <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0;">
+          ${diversifyLegendHTML(buildAssetSlices(positionsFor(p)))}
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="card">
+      <div class="card-title">Read this, ${escapeHTML(p.name)}</div>
+      <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 10px;">
+        Starting from ${fmtEUR(principalContributed(p))} invested so far, you're on pace for roughly ${fmtEUR(projectOnPace(p))} by ${gp.endDate.getFullYear()} at your average return to date — this part is speculation, not a promise. It simply takes your growth (or loss) pace up to now and stretches it forward as if nothing about market conditions changes, which real markets never actually do.
+        If that same money had gone entirely into a savings account instead, it would be worth around ${fmtEUR(projectSavingsPace(p))} by then.
+      </p>
+      <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 10px;">${buildSummaryText(p, totals, ahead)}</p>
+      <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0;">
+        You started saving on ${new Date(p.plan.startDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}, and this shows your progress since then.
+        Remember — it's not a game. It carries real risk. But that's how you learn to weigh it, and along the way it can be fun, and bring you closer to your goal.
+        Sitting still doesn't teach you how to run. ;)
+      </p>
+    </div>
+  `;
+
+  drawChart(document.getElementById('chart'), p, savingsVal);
+  const diversifyCanvas = document.getElementById('diversify-chart');
+  if(diversifyCanvas) drawDonutChart(diversifyCanvas, buildAssetSlices(positionsFor(p)));
+  main.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{ S.range=b.dataset.range; render(); });
+  document.getElementById('register-tx-btn').onclick = ()=>{ S.view='register-choice'; render(); };
+  document.getElementById('refresh-prices').onclick = ()=>refreshPrices(p);
+}
+
+// Colors for the diversification chart: hue anchored to the bucket (matching the
+// bucket dot colors elsewhere), lightness varied per asset within that bucket so
+// each slice is distinguishable without introducing a whole new palette.
+function assetSliceColor(bucketId, idx){
+  const hues = {long:217, div:142, spec:38};
+  const hue = hues[bucketId]||217;
+  const light = Math.max(28, 60 - idx*9);
+  return `hsl(${hue}, 68%, ${light}%)`;
+}
+
+function buildAssetSlices(positions){
+  const counters = {long:0, div:0, spec:0};
+  return positions
+    .filter(pos=>pos.asset && pos.value>0.0001)
+    .map(pos=>{
+      const idx = counters[pos.asset.bucket]++;
+      return {label:pos.asset.ticker, value:pos.value, color:assetSliceColor(pos.asset.bucket, idx)};
+    })
+    .sort((a,b)=>b.value-a.value);
+}
+
+function diversifyLegendHTML(slices){
+  const total = slices.reduce((s,sl)=>s+sl.value,0);
+  return slices.map(sl=>`
+    <div class="row" style="font-size:12px;">
+      <span style="display:flex;align-items:center;gap:7px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
+        <span style="width:9px;height:9px;border-radius:3px;background:${sl.color};display:inline-block;flex-shrink:0;"></span>${sl.label}
+      </span>
+      <span class="num" style="color:var(--text-dim);flex-shrink:0;">${total>0?(sl.value/total*100).toFixed(0):0}%</span>
+    </div>`).join('');
+}
+
+// Generic donut chart renderer — used for both the per-account and family-wide
+// diversification views.
+function drawDonutChart(canvas, slices){
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  const size = canvas.clientWidth||110;
+  canvas.width = size*dpr; canvas.height = size*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,size,size);
+  const total = slices.reduce((s,sl)=>s+sl.value,0);
+  const cx=size/2, cy=size/2, r=size/2-2;
+  if(total<=0){
+    ctx.strokeStyle='rgba(146,153,172,.25)'; ctx.lineWidth=size*0.16;
+    ctx.beginPath(); ctx.arc(cx,cy,r-ctx.lineWidth/2,0,Math.PI*2); ctx.stroke();
+    return;
+  }
+  let start=-Math.PI/2;
+  slices.forEach(sl=>{
+    const angle = (sl.value/total)*Math.PI*2;
+    ctx.beginPath();
+    ctx.moveTo(cx,cy);
+    ctx.arc(cx,cy,r,start,start+angle);
+    ctx.closePath();
+    ctx.fillStyle=sl.color;
+    ctx.fill();
+    start+=angle;
+  });
+  ctx.beginPath();
+  ctx.arc(cx,cy,r*0.56,0,Math.PI*2);
+  ctx.fillStyle = '#12141c';
+  ctx.fill();
+}
+
+/* ---- Family (combined) Home ---- */
+function renderFamilyHome(main){
+  if(S.profiles.length<2){
+    main.innerHTML = `<div class="empty-state">Add a second family member to see the combined view.</div>`;
+    return;
+  }
+  const perProfile = S.profiles.map(profile=>({
+    profile,
+    totals: portfolioTotals(profile),
+    principal: principalContributed(profile),
+    savingsVal: savingsComparisonValue(profile)
+  }));
+  const totalValue = perProfile.reduce((s,x)=>s+x.totals.value,0);
+  const totalCostBasis = perProfile.reduce((s,x)=>s+x.totals.costBasis,0);
+  const totalGain = totalValue-totalCostBasis;
+  const totalGainPct = totalCostBasis>0 ? (totalGain/totalCostBasis*100) : 0;
+  const totalPrincipal = perProfile.reduce((s,x)=>s+x.principal,0);
+  const totalSavingsVal = perProfile.reduce((s,x)=>s+x.savingsVal,0);
+  const aheadOfSavings = totalValue-totalSavingsVal;
+
+  const famBucketTotals = {long:{value:0,costBasis:0}, div:{value:0,costBasis:0}, spec:{value:0,costBasis:0}};
+  S.profiles.forEach(profile=>{
+    const bt = bucketTotals(profile);
+    BUCKETS.forEach(b=>{ famBucketTotals[b.id].value += bt[b.id].value; famBucketTotals[b.id].costBasis += bt[b.id].costBasis; });
+  });
+
+  const familySlices = buildFamilySlices();
+
+  main.innerHTML = `
+    <div class="card">
+      <div class="card-title" style="margin-bottom:10px;">Everyone, combined</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;">
+        ${perProfile.map(x=>`<span class="flag" style="background:var(--surface-3);color:var(--text);font-size:12px;padding:6px 11px;font-weight:600;">${escapeHTML(x.profile.name)} — ${fmtEUR(x.totals.value)}</span>`).join('')}
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="hero-value">${fmtEUR(totalValue)}</div>
+      <div class="hero-delta ${totalGain>0?'delta-up':totalGain<0?'delta-down':'delta-flat'}">
+        ${totalGain>=0?'▲':'▼'} ${fmtEUR(Math.abs(totalGain))} (${fmtPct(totalGainPct)}) all-time
+      </div>
+      <div class="range-tabs">
+        ${['1M','3M','6M','1Y','ALL'].map(r=>`<button data-range="${r}" class="${S.range===r?'active':''}">${r}</button>`).join('')}
+      </div>
+      <canvas class="chart" id="family-chart"></canvas>
+      <div class="savings-compare-block">
+        <div class="row">
+          <span class="label">If every account's contributions had gone to savings instead</span>
+        </div>
+        <div class="row" style="margin-top:4px;">
+          <span class="num" style="font-size:16px;font-weight:700;">${fmtEUR(totalSavingsVal)}</span>
+          <span class="val ${aheadOfSavings>=0?'delta-up':'delta-down'}">${aheadOfSavings>=0?'You\'re ahead by ':'You\'re behind by '}${fmtEUR(Math.abs(aheadOfSavings))}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="goal-figs" style="margin:0 2px 14px;">
+      <span>Invested so far <b>${fmtEUR(totalPrincipal)}</b></span>
+    </div>
+
+    <div class="bucket-grid">
+      ${BUCKETS.map(b=>{
+        const bt = famBucketTotals[b.id];
+        const g = bt.value-bt.costBasis;
+        const gp2 = bt.costBasis>0? (g/bt.costBasis*100):0;
+        const shareOfTotal = totalValue>0 ? (bt.value/totalValue*100) : 0;
+        return `<div class="bucket-chip">
+          <div class="bname ${b.color}">${b.short} · ${shareOfTotal.toFixed(0)}%</div>
+          <div class="bval">${fmtEUR(bt.value)}</div>
+          <div class="bdelta ${g>=0?'delta-up':'delta-down'}">${fmtPct(gp2)}</div>
+        </div>`;
+      }).join('')}
+    </div>
+
+    ${familySlices.length ? `
+    <div class="card">
+      <div class="card-title">Family Mix</div>
+      <div style="display:flex;gap:18px;align-items:center;">
+        <canvas id="family-mix-chart" style="width:110px;height:110px;flex-shrink:0;"></canvas>
+        <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0;">
+          ${diversifyLegendHTML(familySlices)}
+        </div>
+      </div>
+    </div>` : ''}
+
+    <div class="card card-sm">
+      <p class="hint" style="margin:0;">This is a read-only combined view — to register a purchase or sale, switch to that person's own account.</p>
+    </div>
+  `;
+
+  drawFamilyChart(document.getElementById('family-chart'), totalSavingsVal);
+  const mixCanvas = document.getElementById('family-mix-chart');
+  if(mixCanvas) drawDonutChart(mixCanvas, familySlices);
+  main.querySelectorAll('[data-range]').forEach(b=>b.onclick=()=>{ S.range=b.dataset.range; render(); });
+}
+
+function monthName(){ return new Date().toLocaleString('en-US',{month:'long'}); }
+
+function projectOnPace(p){
+  const calendarMonthsElapsed = monthsSince(p.plan.startDate);
+  const historyMonths = contributionMonthsCount(p); // months you've actually had money invested
+  const totalMonths = p.plan.horizonYears*12;
+  const totals = portfolioTotals(p);
+  const remainingMonths = Math.max(totalMonths-calendarMonthsElapsed,0);
+
+  // With no contributions logged yet, there's nothing to derive a rate from —
+  // project on contributions alone. Uses gross cost basis ever contributed (not
+  // just what's currently invested), so a full sell-out doesn't wrongly look like
+  // "no history" if there's real realized performance on record.
+  if(totals.grossCostBasisEver<=0){
+    return totals.value + remainingMonths*p.plan.monthlyAmount;
+  }
+
+  // Derive an implied monthly rate from true all-time performance so far —
+  // unrealized gain on what's still held, plus anything already locked in via
+  // sells or dividends — over the months you've actually been invested, not
+  // calendar time since the plan started. Clamped to a sane range so a short
+  // lucky (or unlucky) stretch doesn't extrapolate into an absurd forecast, and
+  // floored above zero so a near-total loss can't send Math.pow into NaN territory.
+  const growthMultiplier = Math.max(1 + totals.gainPct/100, 0.01);
+  let r = Math.pow(growthMultiplier, 1/Math.max(historyMonths,1)) - 1;
+  r = Math.max(Math.min(r, 0.02), -0.02);
+
+  // Standard future-value formula: today's holdings compounding forward, plus a
+  // stream of future monthly contributions each compounding for its own
+  // remaining time (not all treated as if they'd had the full period to grow).
+  const fvLumpSum = totals.value * Math.pow(1+r, remainingMonths);
+  const fvContributions = r!==0
+    ? p.plan.monthlyAmount * ((Math.pow(1+r,remainingMonths)-1)/r)
+    : p.plan.monthlyAmount * remainingMonths;
+  return fvLumpSum + fvContributions;
+}
+
+// The savings-only counterpart to projectOnPace: what the same €X/month would be
+// worth by the end of the full horizon if it had all gone into a savings account
+// instead — the forward-looking twin of savingsComparisonValue (which only looks
+// at what's happened so far).
+function projectSavingsPace(p){
+  const totalMonths = p.plan.horizonYears*12;
+  const monthlyRate = (p.plan.savingsRate/100)/12;
+  let fv = 0;
+  for(let i=0;i<totalMonths;i++){
+    fv = (fv + p.plan.monthlyAmount) * (1+monthlyRate);
+  }
+  return fv;
+}
+
+function lastPriceMeta(p){
+  const times = Object.values(p.prices).map(x=>x.asOf).filter(Boolean).sort();
+  if(!times.length) return 'Prices not yet fetched';
+  const last = new Date(times[times.length-1]);
+  return 'Updated ' + last.toLocaleString('en-US',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'});
+}
+
+// Checks whether the speculative bucket has drifted meaningfully above its
+// original target share — a sign the portfolio has gotten riskier than intended,
+// usually because strong (or weak) performance skewed the balance over time.
+function diversificationWarning(p, bTotals, totalValue){
+  if(totalValue<=0 || !p.plan.buckets.spec) return null;
+  const targetPct = p.plan.buckets.spec / p.plan.monthlyAmount * 100;
+  const currentPct = bTotals.spec.value/totalValue*100;
+  if(currentPct - targetPct >= 15){
+    return `Worth flagging: speculative now makes up ${currentPct.toFixed(0)}% of your total, well above your original ${targetPct.toFixed(0)}% target. Since that's the highest-risk bucket, it might be worth rebalancing some of those gains into steadier ground.`;
+  }
+  return null;
+}
+
+function buildSummaryText(p, totals, ahead){
+  const bTotals = bucketTotals(p);
+  let best=null, worst=null;
+  BUCKETS.forEach(b=>{
+    const bt=bTotals[b.id]; if(bt.costBasis<=0) return;
+    const pct=(bt.value-bt.costBasis)/bt.costBasis*100;
+    if(!best||pct>best.pct) best={name:b.short,pct};
+    if(!worst||pct<worst.pct) worst={name:b.short,pct};
+  });
+  if(!best) return `No contributions logged yet — once you log the first one, this'll track how you're doing against a savings account and how each bucket is pulling its weight.`;
+
+  const principal = principalContributed(p);
+  let text;
+  if(ahead>=0){
+    text = `You've put in ${fmtEUR(principal)} so far, and right now you're ahead of a plain savings account by ${fmtEUR(Math.abs(ahead))}. Nice work — that's the real reward for taking on the extra risk.`;
+    if(best && worst && best.name!==worst.name){
+      text += ` ${best.name} is carrying the growth this stretch (${fmtPct(best.pct)}), while ${worst.name} is ${worst.pct<0?'pulling back':'lagging'} (${fmtPct(worst.pct)}).`;
+    }
+  } else {
+    text = `You've put in ${fmtEUR(principal)} so far, and right now you're behind a plain savings account by ${fmtEUR(Math.abs(ahead))}. That happens — investing carries real risk, and a rough stretch like this doesn't need to change the plan.`;
+    if(best && worst && best.name!==worst.name){
+      text += ` ${worst.name} is what's dragging things down at the moment (${fmtPct(worst.pct)}), while ${best.name} is holding up better (${fmtPct(best.pct)}).`;
+    }
+    text += ` Worth a calm look at whether your bucket split still feels right, rather than reacting to one stretch.`;
+  }
+
+  const warning = diversificationWarning(p, bTotals, totals.value);
+  if(warning) text += ` ${warning}`;
+
+  if(ahead<0 && (p.tone||'neutral')==='encouraging'){
+    text += ` Remember — savings are really just one part of a bigger picture here. The whole point of spreading across buckets is that no single comparison tells the full story; the mix is what's actually protecting you long-term.`;
+  }
+  return text;
+}
+
+/* ---- Chart ---- */
+// Replays a set of transactions (possibly spanning multiple assets, even multiple
+// profiles for the Family view) chronologically, tracking each asset's own running
+// cost basis so sells correctly reduce the cumulative total by the cost removed —
+// rather than naively summing amountEUR, which sell transactions don't carry.
+function buildCumulativeCostBasisPoints(transactions){
+  const perAsset = {};
+  const sorted = transactions.slice().sort((a,b)=>a.date.localeCompare(b.date));
+  const points = [];
+  let runningTotal = 0;
+  sorted.forEach(tx=>{
+    if(!perAsset[tx.assetId]) perAsset[tx.assetId] = {units:0, costBasis:0};
+    const st = perAsset[tx.assetId];
+    if(tx.type==='sell'){
+      const avgCost = st.units>0 ? st.costBasis/st.units : 0;
+      const soldUnits = Math.min(tx.units||0, st.units);
+      const costRemoved = avgCost*soldUnits;
+      st.units -= soldUnits; st.costBasis -= costRemoved;
+      runningTotal -= costRemoved;
+    } else {
+      const cost = tx.amountEUR + (tx.fee||0);
+      st.costBasis += cost;
+      st.units += unitsFor(tx);
+      runningTotal += cost;
+    }
+    points.push({date:tx.date, val:runningTotal});
+  });
+  return points;
+}
+
+function drawChart(canvas, p, savingsVal){
+  if(!canvas) return;
+  if(!p.transactions.length){
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio||1;
+    const w = canvas.clientWidth, hgt = 150;
+    canvas.width = w*dpr; canvas.height = hgt*dpr;
+    ctx.scale(dpr,dpr);
+    ctx.clearRect(0,0,w,hgt);
+    ctx.fillStyle = 'rgba(146,153,172,.5)';
+    ctx.font = '12px Inter'; ctx.fillText('Log your first contribution to start the chart', 8, hgt/2);
+    return;
+  }
+  const points = buildCumulativeCostBasisPoints(p.transactions);
+  const totals = portfolioTotals(p);
+  drawChartCore(canvas, points, totals.value, savingsVal);
+}
+
+function drawFamilyChart(canvas, savingsVal){
+  if(!canvas) return;
+  const allTx = [];
+  S.profiles.forEach(profile=>profile.transactions.forEach(tx=>allTx.push(tx)));
+  if(!allTx.length){
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio||1;
+    const w = canvas.clientWidth, hgt = 150;
+    canvas.width = w*dpr; canvas.height = hgt*dpr;
+    ctx.scale(dpr,dpr);
+    ctx.clearRect(0,0,w,hgt);
+    ctx.fillStyle = 'rgba(146,153,172,.5)';
+    ctx.font = '12px Inter'; ctx.fillText('No contributions logged yet across the family', 8, hgt/2);
+    return;
+  }
+  const points = buildCumulativeCostBasisPoints(allTx);
+  const totalValue = S.profiles.reduce((s,profile)=>s+portfolioTotals(profile).value,0);
+  drawChartCore(canvas, points, totalValue, savingsVal);
+}
+
+function drawChartCore(canvas, costBasisPoints, finalValue, savingsVal){
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio||1;
+  const w = canvas.clientWidth, hgt = 150;
+  canvas.width = w*dpr; canvas.height = hgt*dpr;
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,w,hgt);
+
+  const points = costBasisPoints.concat([{date:'today', val:finalValue}]);
+
+  const maxV = Math.max(...points.map(pt=>pt.val), savingsVal, 1);
+  const minV = 0;
+  const padX=8, padY=14;
+  const xStep = (w-padX*2)/(points.length-1||1);
+  const yFor = v => hgt-padY - ((v-minV)/(maxV-minV||1))*(hgt-padY*2);
+  const xFor = i => padX + i*xStep;
+
+  // gradient area
+  const grad = ctx.createLinearGradient(0,0,0,hgt);
+  grad.addColorStop(0,'rgba(59,130,246,.35)');
+  grad.addColorStop(1,'rgba(59,130,246,0)');
+  ctx.beginPath();
+  ctx.moveTo(xFor(0), hgt-padY);
+  points.forEach((pt,i)=>ctx.lineTo(xFor(i), yFor(pt.val)));
+  ctx.lineTo(xFor(points.length-1), hgt-padY);
+  ctx.closePath();
+  ctx.fillStyle = grad; ctx.fill();
+
+  // line
+  ctx.beginPath();
+  points.forEach((pt,i)=>{ i===0?ctx.moveTo(xFor(i),yFor(pt.val)):ctx.lineTo(xFor(i),yFor(pt.val)); });
+  ctx.strokeStyle = '#3b82f6'; ctx.lineWidth=2; ctx.stroke();
+
+  // dots for contributions
+  ctx.fillStyle = '#e9ebf1';
+  points.slice(0,-1).forEach((pt,i)=>{
+    ctx.beginPath(); ctx.arc(xFor(i), yFor(pt.val), 3, 0, Math.PI*2); ctx.fill();
+  });
+  // current value marker
+  const li = points.length-1;
+  ctx.beginPath(); ctx.arc(xFor(li), yFor(points[li].val), 4, 0, Math.PI*2);
+  ctx.fillStyle = '#22c55e'; ctx.fill();
+
+  // savings dashed line
+  ctx.beginPath();
+  ctx.setLineDash([4,4]);
+  ctx.moveTo(xFor(0), yFor(0));
+  ctx.lineTo(xFor(li), yFor(savingsVal));
+  ctx.strokeStyle = 'rgba(146,153,172,.7)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.setLineDash([]);
+}
+
+/* ---- Live prices via Claude API (web search) ---- */
+// Common crypto tickers mapped to CoinGecko IDs. Crypto prices move fast and are
+// exactly the kind of number an LLM can get wrong even with web search enabled
+// (it can lean on a stale memorized figure instead of the actual search result),
+// so for these we hit a free, keyless, direct price API rather than routing through
+// the model at all — no room for the number to drift from what's actually current.
+// Free, keyless FX lookup (ECB reference rates via frankfurter.app) for converting
+// a purchase made in a foreign currency to EUR.
+async function autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList){
+  if(pk.currency==='EUR'){ pk.fxRate=1; return; }
+  const statusEl = document.getElementById(`fx-status-${pk.pid}`);
+  if(statusEl) statusEl.textContent = 'Fetching automatically…';
+  // Use the rate from the actual purchase date rather than today's — the ECB
+  // reference data only covers business days, so a weekend/holiday date falls
+  // back to the nearest prior rate automatically.
+  const dateStr = pk.date || todayISO();
+  const endpoint = dateStr===todayISO() ? 'latest' : dateStr;
+  try{
+    const resp = await fetch(`https://api.frankfurter.app/${endpoint}?from=${pk.currency}&to=EUR`);
+    if(!resp.ok) throw new Error(`Frankfurter responded ${resp.status}`);
+    const data = await resp.json();
+    if(data.rates && typeof data.rates.EUR==='number'){
+      pk.fxRate = data.rates.EUR;
+      pk.fxFailed = false;
+      const liveStatusEl = document.getElementById(`fx-status-${pk.pid}`);
+      if(liveStatusEl) liveStatusEl.textContent = `1 ${pk.currency} = ${pk.fxRate.toFixed(4)} EUR (auto)`;
+      const fallback = document.querySelector(`[data-fxfallback="${pk.pid}"]`);
+      if(fallback) fallback.classList.add('hidden');
+      updateTotalOut(pk);
+      updateFooter();
+    } else {
+      throw new Error('No rate in response');
+    }
+  }catch(e){
+    console.error('FX rate lookup failed', e);
+    pk.fxFailed = true;
+    const liveStatusEl = document.getElementById(`fx-status-${pk.pid}`);
+    if(liveStatusEl) liveStatusEl.textContent = "Couldn't fetch a rate automatically — enter it below.";
+    if(renderList) renderList();
+  }
+}
+
+const CRYPTO_TICKER_TO_COINGECKO = {
+  BTC:'bitcoin', ETH:'ethereum', SOL:'solana', ADA:'cardano', XRP:'ripple',
+  DOGE:'dogecoin', LTC:'litecoin', DOT:'polkadot', BNB:'binancecoin',
+  USDT:'tether', USDC:'usd-coin', AVAX:'avalanche-2', LINK:'chainlink',
+  MATIC:'matic-network', TRX:'tron', ATOM:'cosmos'
+};
+
+// Direct client-side calls to api.anthropic.com only work inside Claude's own
+// artifact preview, where the key is injected invisibly. Hosted anywhere else
+// (GitHub Pages, Netlify, etc.), this needs a real API key — stored locally,
+// entered once in Settings — sent with the direct-browser-access header Anthropic
+// requires for calls made straight from a browser rather than a server.
+function anthropicHeaders(){
+  return {
+    'Content-Type':'application/json',
+    'x-api-key': S.anthropicApiKey||'',
+    'anthropic-version':'2023-06-01',
+    'anthropic-dangerous-direct-browser-access':'true'
+  };
+}
+function hasApiKey(){ return !!(S.anthropicApiKey && S.anthropicApiKey.trim()); }
+
+async function refreshPrices(p){
+  if(!p.assets.length) return;
+  const btn = document.getElementById('refresh-prices');
+  if(btn) btn.textContent = 'refreshing…';
+
+  const cryptoAssets = p.assets.filter(a=>a.type==='Crypto' && CRYPTO_TICKER_TO_COINGECKO[a.ticker.toUpperCase()]);
+  let otherAssets = p.assets.filter(a=>!(a.type==='Crypto' && CRYPTO_TICKER_TO_COINGECKO[a.ticker.toUpperCase()]));
+
+  // Direct, keyless price feed for recognized crypto tickers. If this fails for
+  // any reason (network restriction, CORS, rate limit — the failure mode varies
+  // by where this page is hosted or being tested), fall through to the search-based
+  // lookup below instead of leaving those assets with a stale price.
+  if(cryptoAssets.length){
+    try{
+      const ids = [...new Set(cryptoAssets.map(a=>CRYPTO_TICKER_TO_COINGECKO[a.ticker.toUpperCase()]))].join(',');
+      const resp = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${ids}&vs_currencies=eur`);
+      if(!resp.ok) throw new Error(`CoinGecko responded ${resp.status}`);
+      const data = await resp.json();
+      const failed = [];
+      cryptoAssets.forEach(a=>{
+        const cgId = CRYPTO_TICKER_TO_COINGECKO[a.ticker.toUpperCase()];
+        if(data[cgId] && typeof data[cgId].eur==='number'){
+          p.prices[a.id] = {price:data[cgId].eur, asOf:new Date().toISOString(), currency:'EUR'};
+        } else {
+          failed.push(a);
+        }
+      });
+      if(failed.length) otherAssets = otherAssets.concat(failed);
+    }catch(e){
+      console.warn('CoinGecko direct fetch unavailable, falling back to search for crypto prices:', e);
+      otherAssets = otherAssets.concat(cryptoAssets);
+    }
+  }
+
+  // Everything else (ETFs, stocks, bonds, metals, or unrecognized/unreachable
+  // crypto tickers) goes through Claude + web search, with an explicit instruction
+  // not to answer from memory. Requires an API key configured in Settings when
+  // this page is hosted outside Claude's own preview.
+  if(otherAssets.length){
+    if(!hasApiKey()){
+      S.priceRefreshNote = 'Add an Anthropic API key in Settings to enable live lookups for non-crypto assets.';
+    } else {
+      const tickers = otherAssets.map(a=>`${a.id}:${a.ticker}`).join(', ');
+      try{
+        const resp = await fetch('https://api.anthropic.com/v1/messages', {
+          method:'POST',
+          headers: anthropicHeaders(),
+          body: JSON.stringify({
+            model: AI_MODEL,
+            max_tokens: 1000,
+            messages:[{role:'user', content:
+              `Use web_search to look up today's current market prices in EUR for these assets (format id:ticker): ${tickers}. ` +
+              `Do not answer from memory or approximate — only use figures you actually find via web_search, since prices change daily and a memorized value could be badly out of date. ` +
+              `If you can't find a reliable current price for an item, omit it entirely rather than guessing. ` +
+              `Respond with ONLY a JSON array, no markdown, no preamble, like: ` +
+              `[{"id":"abc123","price":41.2,"asOf":"2026-09-11"}]`
+            }],
+            tools:[{type:'web_search_20250305', name:'web_search'}]
+          })
+        });
+        if(!resp.ok){
+          const errBody = await resp.text().catch(()=>'');
+          throw new Error(`API responded ${resp.status}: ${errBody.slice(0,200)}`);
+        }
+        const data = await resp.json();
+        const textBlock = (data.content||[]).map(c=>c.text||'').join('');
+        const clean = textBlock.replace(/```json|```/g,'').trim();
+        const match = clean.match(/\[[\s\S]*\]/);
+        const arr = JSON.parse(match?match[0]:clean);
+        arr.forEach(item=>{
+          p.prices[item.id] = {price:item.price, asOf: new Date().toISOString(), currency:'EUR'};
+        });
+        S.priceRefreshNote = null;
+      }catch(e){
+        console.error('Price refresh failed', e);
+        S.priceRefreshNote = 'Live lookup for non-crypto assets failed — check your API key in Settings, or try again shortly.';
+      }
+    }
+  } else {
+    S.priceRefreshNote = null;
+  }
+
+  saveState();
+  render();
+}
+
+/* ---- Register a transaction (buy or sell chooser) ---- */
+function renderRegisterChoice(main, p){
+  const hasHoldings = positionsFor(p).some(pos=>pos.units>0.0000001);
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-choice">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:16px;">Register a transaction</div>
+    <div class="card card-sm row" data-choice="buy" style="margin-bottom:12px;cursor:pointer;">
+      <div class="row" style="gap:12px;">
+        <span class="pos-badge" style="background:var(--accent-soft);color:var(--accent-2);font-size:16px;">↑</span>
+        <div>
+          <div style="font-size:14px;font-weight:650;">Buy</div>
+          <div class="hint" style="margin:0;">Register a purchase you're making now or made recently.</div>
+        </div>
+      </div>
+      <span style="color:var(--text-faint);">›</span>
+    </div>
+    <div class="card card-sm row" data-choice="sell" style="${hasHoldings?'cursor:pointer;margin-bottom:12px;':'opacity:.5;margin-bottom:12px;'}">
+      <div class="row" style="gap:12px;">
+        <span class="pos-badge" style="background:var(--red-soft);color:var(--red);font-size:16px;">↓</span>
+        <div>
+          <div style="font-size:14px;font-weight:650;">Sell</div>
+          <div class="hint" style="margin:0;">${hasHoldings?'Register a sale you\'re making now or made recently.':'No holdings to sell yet.'}</div>
+        </div>
+      </div>
+      ${hasHoldings?'<span style="color:var(--text-faint);">›</span>':''}
+    </div>
+    <div class="card card-sm row" data-choice="dividend" style="${hasHoldings?'cursor:pointer;':'opacity:.5;'}">
+      <div class="row" style="gap:12px;">
+        <span class="pos-badge" style="background:var(--green-soft);color:var(--green);font-size:16px;">€</span>
+        <div>
+          <div style="font-size:14px;font-weight:650;">Dividend received</div>
+          <div class="hint" style="margin:0;">${hasHoldings?'Register a dividend or distribution payout.':'No holdings to receive a dividend on yet.'}</div>
+        </div>
+      </div>
+      ${hasHoldings?'<span style="color:var(--text-faint);">›</span>':''}
+    </div>
+  `;
+  document.getElementById('cancel-choice').onclick = ()=>{ S.view='home'; render(); };
+  main.querySelector('[data-choice="buy"]').onclick = ()=>{ startContribution(p); };
+  if(hasHoldings){
+    main.querySelector('[data-choice="sell"]').onclick = ()=>{ startSell(p); };
+    main.querySelector('[data-choice="dividend"]').onclick = ()=>{ startDividend(p); };
+  }
+}
+
+/* ---- Dividend flow (register a dividend/distribution you've received) ---- */
+function startDividend(p){
+  S.dividendDraft = { assetId: null, amountEUR:'', currency:'EUR', fxRate:1, fxFailed:false, date: todayISO(), reasoning:'' };
+  S.view='dividend';
+  render();
+}
+
+function renderDividendFlow(main, p){
+  const d = S.dividendDraft;
+  const positions = positionsFor(p).filter(pos=>pos.asset && pos.units>0.0000001);
+  if(!d.assetId && positions.length) d.assetId = positions[0].assetId;
+  const pos = positions.find(x=>x.assetId===d.assetId);
+
+  if(!positions.length){
+    main.innerHTML = `
+      <div class="back-row"><button id="cancel-dividend">✕ Cancel</button></div>
+      <div class="page-title">Register a dividend</div>
+      <div class="empty-state">No holdings to receive a dividend on yet.</div>`;
+    document.getElementById('cancel-dividend').onclick = ()=>{ S.dividendDraft=null; S.view='positions'; render(); };
+    return;
+  }
+
+  const eurAmount = d.currency==='EUR' ? (+d.amountEUR||0) : (+d.amountEUR||0)*(+d.fxRate||0);
+  const isValid = (+d.amountEUR||0)>0 && (d.currency==='EUR' || (+d.fxRate||0)>0);
+
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-dividend">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Register a dividend</div>
+    <p class="explainer" style="margin:0 0 16px;">Recording a dividend or distribution you've already received — this is a record of income, it doesn't buy new units on its own.</p>
+
+    <div class="field">
+      <label>Asset</label>
+      <select id="div-asset-select">
+        ${positions.map(ps=>`<option value="${ps.assetId}" ${ps.assetId===d.assetId?'selected':''}>${ps.asset.ticker!==ps.asset.name?ps.asset.ticker+' — '+ps.asset.name:ps.asset.name}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>Date received</label>
+      <input type="date" id="div-date" value="${d.date}" max="${todayISO()}" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Currency</label>
+        <select id="div-currency">${FX_CURRENCIES.map(c=>`<option ${d.currency===c?'selected':''}>${c}</option>`).join('')}</select>
+      </div>
+      <div class="field ${d.currency==='EUR'?'hidden':''}">
+        <label>Rate to EUR</label>
+        <div class="hint" id="div-fx-status" style="margin-top:11px;">Fetching automatically…</div>
+        <div class="${d.fxFailed?'':'hidden'}" id="div-fx-fallback" style="margin-top:6px;display:flex;gap:6px;">
+          <input type="number" id="div-fxrate" value="${d.fxRate||''}" step="0.0001" min="0" placeholder="Enter rate manually" style="flex:1;" />
+          <button id="div-fx-retry" class="btn-ghost" style="width:auto;padding:0 10px;font-size:11.5px;">Retry</button>
+        </div>
+      </div>
+    </div>
+    <div class="field">
+      <label>Amount received (${d.currency})</label>
+      <input type="number" id="div-amount" value="${d.amountEUR}" step="0.01" min="0" placeholder="0.00" />
+      <div class="hint" id="div-eur-preview">${d.currency==='EUR'?'':`≈ ${fmtEUR(eurAmount)}`}</div>
+    </div>
+    <div class="field">
+      <label>Note (optional)</label>
+      <textarea id="div-reasoning" placeholder="e.g. Q3 dividend">${d.reasoning}</textarea>
+    </div>
+
+    <button class="btn btn-primary" id="div-save-btn" ${isValid?'':'disabled'}>Save & stamp</button>
+  `;
+
+  document.getElementById('cancel-dividend').onclick = ()=>{ S.dividendDraft=null; S.view='positions'; render(); };
+  document.getElementById('div-asset-select').onchange = e=>{ d.assetId=e.target.value; render(); };
+  document.getElementById('div-date').onchange = e=>{
+    d.date=e.target.value;
+    if(d.currency!=='EUR') fetchDividendFx(p);
+  };
+  document.getElementById('div-reasoning').oninput = e=>{ d.reasoning=e.target.value; };
+
+  function refreshValidity(){
+    const btn = document.getElementById('div-save-btn');
+    const valid = (+d.amountEUR||0)>0 && (d.currency==='EUR' || (+d.fxRate||0)>0);
+    btn.disabled = !valid;
+    const preview = document.getElementById('div-eur-preview');
+    if(d.currency!=='EUR'){
+      const eur = (+d.amountEUR||0)*(+d.fxRate||0);
+      preview.textContent = (+d.fxRate||0)>0 ? `≈ ${fmtEUR(eur)}` : '';
+    }
+  }
+  document.getElementById('div-amount').oninput = e=>{ d.amountEUR=e.target.value===''?'':Math.max(+e.target.value,0); refreshValidity(); };
+
+  document.getElementById('div-currency').onchange = e=>{
+    d.currency = e.target.value;
+    if(d.currency==='EUR'){ d.fxRate=1; d.fxFailed=false; } else { d.fxRate=0; d.fxFailed=false; }
+    render();
+    if(d.currency!=='EUR') fetchDividendFx(p);
+  };
+  const retryBtn = document.getElementById('div-fx-retry');
+  if(retryBtn) retryBtn.onclick = ()=>fetchDividendFx(p);
+  const manualFx = document.getElementById('div-fxrate');
+  if(manualFx) manualFx.oninput = e=>{ d.fxRate=Math.max(+e.target.value,0); refreshValidity(); };
+
+  document.getElementById('div-save-btn').onclick = ()=>{
+    const finalEurAmount = d.currency==='EUR' ? (+d.amountEUR) : (+d.amountEUR)*(+d.fxRate);
+    if(!((+d.amountEUR||0)>0) || (d.currency!=='EUR' && !((+d.fxRate||0)>0))) return;
+    p.transactions.push({
+      id:uid(), date:d.date, type:'dividend', bucket:pos.asset.bucket, assetId:pos.assetId,
+      amountEUR: finalEurAmount, reasoning: d.reasoning,
+      origCurrency: d.currency!=='EUR' ? d.currency : undefined,
+      origAmount: d.currency!=='EUR' ? +d.amountEUR : undefined,
+      fxRate: d.currency!=='EUR' ? +d.fxRate : undefined
+    });
+    S.dividendDraft=null; S.view='home'; saveState(); render();
+  };
+
+  if(d.currency!=='EUR' && !d.fxRate && !d.fxFailed) fetchDividendFx(p);
+}
+
+async function fetchDividendFx(p){
+  const d = S.dividendDraft;
+  if(!d || d.currency==='EUR') return;
+  const statusEl = document.getElementById('div-fx-status');
+  if(statusEl) statusEl.textContent = 'Fetching automatically…';
+  const dateStr = d.date || todayISO();
+  const endpoint = dateStr===todayISO() ? 'latest' : dateStr;
+  try{
+    const resp = await fetch(`https://api.frankfurter.app/${endpoint}?from=${d.currency}&to=EUR`);
+    if(!resp.ok) throw new Error(`Frankfurter responded ${resp.status}`);
+    const data = await resp.json();
+    if(data.rates && typeof data.rates.EUR==='number'){
+      d.fxRate = data.rates.EUR;
+      d.fxFailed = false;
+      const liveStatus = document.getElementById('div-fx-status');
+      if(liveStatus) liveStatus.textContent = `1 ${d.currency} = ${d.fxRate.toFixed(4)} EUR (auto)`;
+      const fallback = document.getElementById('div-fx-fallback');
+      if(fallback) fallback.classList.add('hidden');
+      const preview = document.getElementById('div-eur-preview');
+      if(preview) preview.textContent = `≈ ${fmtEUR((+d.amountEUR||0)*d.fxRate)}`;
+      const saveBtn = document.getElementById('div-save-btn');
+      if(saveBtn) saveBtn.disabled = !((+d.amountEUR||0)>0);
+    } else {
+      throw new Error('No rate in response');
+    }
+  }catch(e){
+    console.error('Dividend FX lookup failed', e);
+    d.fxFailed = true;
+    const liveStatus = document.getElementById('div-fx-status');
+    if(liveStatus) liveStatus.textContent = "Couldn't fetch a rate automatically — enter it below.";
+    const fallback = document.getElementById('div-fx-fallback');
+    if(fallback) fallback.classList.remove('hidden');
+  }
+}
+
+/* ---- Sell flow (register a sale you've already made) ---- */
+function startSell(p, assetId){
+  S.sellDraft = { assetId: assetId||null, sellAll:false, amountEUR:'', priceAtSell:null, fee:0, reasoning:'', date: todayISO() };
+  S.view='sell';
+  render();
+}
+
+function sellPreview(pos, d){
+  if(!pos) return {unitsToSell:0, proceeds:0, realizedGain:0};
+  let unitsToSell = d.sellAll ? pos.units : (d.amountEUR ? (+d.amountEUR/(d.priceAtSell||1)) : 0);
+  unitsToSell = Math.max(0, Math.min(unitsToSell, pos.units));
+  const avgCost = pos.units>0 ? pos.costBasis/pos.units : 0;
+  const costRemoved = avgCost*unitsToSell;
+  const proceeds = unitsToSell*(d.priceAtSell||0) - (d.fee||0);
+  const realizedGain = proceeds - costRemoved;
+  return {unitsToSell, proceeds, realizedGain};
+}
+
+function renderSellFlow(main, p){
+  const d = S.sellDraft;
+  const positions = positionsFor(p).filter(pos=>pos.asset && pos.units>0.0000001);
+  if(!d.assetId && positions.length) d.assetId = positions[0].assetId;
+  const pos = positions.find(x=>x.assetId===d.assetId);
+  if(d.priceAtSell===null && pos) d.priceAtSell = pos.price;
+
+  if(!positions.length){
+    main.innerHTML = `
+      <div class="back-row"><button id="cancel-sell">✕ Cancel</button></div>
+      <div class="page-title">Register a sale</div>
+      <div class="empty-state">No holdings to sell yet.</div>`;
+    document.getElementById('cancel-sell').onclick = ()=>{ S.sellDraft=null; S.view='positions'; render(); };
+    return;
+  }
+
+  const preview = sellPreview(pos, d);
+
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-sell">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Register a sale</div>
+    <p class="explainer" style="margin:0 0 16px;">Recording a sale you've already made elsewhere.</p>
+
+    <div class="field">
+      <label>Asset</label>
+      <select id="sell-asset-select">
+        ${positions.map(ps=>`<option value="${ps.assetId}" ${ps.assetId===d.assetId?'selected':''}>${ps.asset.ticker} — ${ps.asset.name} (${ps.units.toFixed(4)} units held)</option>`).join('')}
+      </select>
+    </div>
+    <div class="card card-sm" style="margin-bottom:14px;">
+      <div class="taxline"><span>Units held</span><span class="num">${pos.units.toFixed(4)}</span></div>
+      <div class="taxline"><span>Cost basis</span><span class="num">${fmtEUR(pos.costBasis)}</span></div>
+      <div class="taxline"><span>Current value</span><span class="num">${fmtEUR(pos.value)}</span></div>
+    </div>
+    <div class="field">
+      <label>Date of sale</label>
+      <input type="date" id="sell-date" value="${d.date}" max="${todayISO()}" />
+    </div>
+    <div class="field-row">
+      <div class="field">
+        <label>Amount to sell (€)</label>
+        <input type="number" id="sell-amount" value="${d.amountEUR}" step="0.01" min="0" placeholder="0.00" ${d.sellAll?'disabled':''} />
+      </div>
+      <div class="field">
+        <label>Price per unit (€)</label>
+        <input type="number" id="sell-price" value="${d.priceAtSell||''}" step="0.01" min="0" />
+      </div>
+    </div>
+    <button class="btn btn-ghost" id="sell-all-toggle" style="margin-bottom:14px;">${d.sellAll?'✓ Selling entire position — tap to enter an amount instead':'Sell entire position instead'}</button>
+    <div class="field"><label>Fee (€)</label><input type="number" id="sell-fee" value="${d.fee}" step="0.01" min="0" /></div>
+    <div class="field">
+      <label>Why are you selling? (required)</label>
+      <textarea id="sell-reasoning" placeholder="What's your reasoning?">${d.reasoning}</textarea>
+    </div>
+
+    <div class="card card-sm" style="margin-bottom:16px;">
+      <div class="taxline"><span>Units to sell</span><span class="num" id="prev-units">${preview.unitsToSell.toFixed(4)}</span></div>
+      <div class="taxline"><span>Proceeds</span><span class="num" id="prev-proceeds">${fmtEUR(preview.proceeds)}</span></div>
+      <div class="taxline"><span><b>Realized gain/loss</b></span><span class="num ${preview.realizedGain>=0?'delta-up':'delta-down'}" id="prev-gain"><b>${fmtEUR(preview.realizedGain)}</b></span></div>
+    </div>
+
+    <button class="btn btn-primary" id="sell-save-btn" ${(preview.unitsToSell>0 && d.reasoning && d.priceAtSell>0)?'':'disabled'}>Save sale & stamp</button>
+  `;
+
+  document.getElementById('cancel-sell').onclick = ()=>{ S.sellDraft=null; S.view='positions'; render(); };
+  document.getElementById('sell-asset-select').onchange = e=>{ d.assetId=e.target.value; d.priceAtSell=null; d.amountEUR=''; d.sellAll=false; renderSellFlow(main,p); };
+  document.getElementById('sell-all-toggle').onclick = ()=>{ d.sellAll=!d.sellAll; renderSellFlow(main,p); };
+
+  function updatePreview(){
+    const prev = sellPreview(pos, d);
+    document.getElementById('prev-units').textContent = prev.unitsToSell.toFixed(4);
+    document.getElementById('prev-proceeds').textContent = fmtEUR(prev.proceeds);
+    const gainEl = document.getElementById('prev-gain');
+    gainEl.innerHTML = `<b>${fmtEUR(prev.realizedGain)}</b>`;
+    gainEl.className = `num ${prev.realizedGain>=0?'delta-up':'delta-down'}`;
+    document.getElementById('sell-save-btn').disabled = !(prev.unitsToSell>0 && d.reasoning && d.priceAtSell>0);
+    return prev;
+  }
+
+  document.getElementById('sell-date').onchange = e=>{ d.date=e.target.value; };
+  document.getElementById('sell-amount').oninput = e=>{ d.amountEUR=e.target.value; updatePreview(); };
+  document.getElementById('sell-price').oninput = e=>{ d.priceAtSell=+e.target.value; updatePreview(); };
+  document.getElementById('sell-fee').oninput = e=>{ d.fee=Math.max(+e.target.value,0); updatePreview(); };
+  document.getElementById('sell-reasoning').oninput = e=>{ d.reasoning=e.target.value; updatePreview(); };
+
+  document.getElementById('sell-save-btn').onclick = ()=>{
+    const finalPreview = sellPreview(pos, d);
+    if(!(finalPreview.unitsToSell>0 && d.reasoning && d.priceAtSell>0)) return;
+    p.transactions.push({
+      id:uid(), date:d.date, type:'sell', bucket:pos.asset.bucket, assetId:pos.assetId,
+      units:finalPreview.unitsToSell, priceAtSell:d.priceAtSell, fee:d.fee||0, reasoning:d.reasoning
+    });
+    S.sellDraft=null; S.view='home'; saveState(); render();
+  };
+}
+
+/* ---- Edit / correct a transaction ---- */
+function startEditTransaction(p, txId){
+  const tx = p.transactions.find(t=>t.id===txId);
+  if(!tx) return;
+  S.editTxDraft = {
+    txId,
+    isSell: tx.type==='sell',
+    isDividend: tx.type==='dividend',
+    date: tx.date,
+    amountEUR: tx.amountEUR,
+    priceAtBuy: tx.priceAtBuy,
+    units: tx.units,
+    priceAtSell: tx.priceAtSell,
+    fee: tx.fee||0,
+    reasoning: tx.reasoning||''
+  };
+  S.view='edit-tx';
+  render();
+}
+
+function renderEditTransaction(main, p){
+  const d = S.editTxDraft;
+  const tx = p.transactions.find(t=>t.id===d.txId);
+  if(!tx){ S.view='positions'; render(); return; }
+  const asset = p.assets.find(a=>a.id===tx.assetId);
+  const bucket = BUCKETS.find(b=>b.id===tx.bucket);
+  const kind = d.isSell ? 'sale' : (d.isDividend ? 'dividend' : 'purchase');
+
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-edit">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Correct this ${kind}</div>
+    <p class="hint" style="margin:0 0 16px;">${asset?asset.ticker:'—'} · ${bucket?bucket.short:''} — fix whatever was entered wrong.</p>
+
+    <div class="field"><label>Date</label><input type="date" id="edit-date" value="${d.date}" max="${todayISO()}" /></div>
+
+    ${d.isDividend ? `
+      <div class="field"><label>Amount received (€)</label><input type="number" id="edit-amount" value="${d.amountEUR}" step="0.01" min="0" /></div>
+    ` : d.isSell ? `
+      <div class="field-row">
+        <div class="field"><label>Units sold</label><input type="number" id="edit-units" value="${d.units}" step="0.00000001" min="0" /></div>
+        <div class="field"><label>Price per unit (€)</label><input type="number" id="edit-price" value="${d.priceAtSell}" step="0.01" min="0" /></div>
+      </div>
+    ` : `
+      <div class="field-row">
+        <div class="field"><label>Order value (€)</label><input type="number" id="edit-amount" value="${d.amountEUR}" step="0.01" min="0" /></div>
+        <div class="field"><label>Price per unit paid (€)</label><input type="number" id="edit-price" value="${d.priceAtBuy}" step="0.01" min="0" /></div>
+      </div>
+    `}
+    ${d.isDividend?'':`<div class="field"><label>Fee (€)</label><input type="number" id="edit-fee" value="${d.fee}" step="0.01" min="0" /></div>`}
+    <div class="field"><label>${d.isDividend?'Note':'Reasoning'}</label><textarea id="edit-reasoning">${d.reasoning}</textarea></div>
+
+    ${d.isDividend?'':`<div class="card card-sm" style="margin-bottom:16px;">
+      <div class="taxline"><span>Units this entry represents</span><span class="num" id="edit-preview-units">${(d.isSell?d.units:(d.priceAtBuy>0?d.amountEUR/d.priceAtBuy:0)).toFixed(6)}</span></div>
+    </div>`}
+
+    <div class="btn-row" style="margin-bottom:10px;">
+      <button class="btn btn-primary" id="save-edit-btn">Save correction</button>
+    </div>
+    ${d.confirmingDelete ? `
+      <div class="card card-sm" style="border-color:rgba(240,85,74,.35);background:var(--red-soft);margin-bottom:10px;">
+        <p style="font-size:12.5px;color:var(--red);font-weight:600;margin:0 0 10px;">Delete this entry? This can't be undone.</p>
+        <div class="btn-row">
+          <button class="btn btn-ghost" id="cancel-delete-btn">Keep it</button>
+          <button class="btn btn-danger" id="confirm-delete-btn">Yes, delete</button>
+        </div>
+      </div>
+    ` : `<button class="btn btn-danger" id="delete-tx-btn">Delete this ${kind} entirely</button>`}
+  `;
+
+  document.getElementById('cancel-edit').onclick = ()=>{ S.editTxDraft=null; S.view='positions'; render(); };
+
+  function updatePreview(){
+    const el = document.getElementById('edit-preview-units');
+    if(!el) return;
+    if(d.isSell){
+      el.textContent = (+d.units||0).toFixed(6);
+    } else {
+      el.textContent = (d.priceAtBuy>0 ? (d.amountEUR/d.priceAtBuy) : 0).toFixed(6);
+    }
+  }
+
+  document.getElementById('edit-date').onchange = e=>{ d.date=e.target.value; };
+  document.getElementById('edit-reasoning').oninput = e=>{ d.reasoning=e.target.value; };
+  const feeInput = document.getElementById('edit-fee');
+  if(feeInput) feeInput.oninput = e=>{ d.fee=Math.max(+e.target.value,0); };
+  if(d.isDividend){
+    document.getElementById('edit-amount').oninput = e=>{ d.amountEUR=Math.max(+e.target.value,0); };
+  } else if(d.isSell){
+    document.getElementById('edit-units').oninput = e=>{ d.units=Math.max(+e.target.value,0); updatePreview(); };
+    document.getElementById('edit-price').oninput = e=>{ d.priceAtSell=Math.max(+e.target.value,0); };
+  } else {
+    document.getElementById('edit-amount').oninput = e=>{ d.amountEUR=Math.max(+e.target.value,0); updatePreview(); };
+    document.getElementById('edit-price').oninput = e=>{ d.priceAtBuy=Math.max(+e.target.value,0); updatePreview(); };
+  }
+
+  document.getElementById('save-edit-btn').onclick = ()=>{
+    if(d.isDividend){
+      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.reasoning=d.reasoning;
+    } else if(d.isSell){
+      tx.date=d.date; tx.units=+d.units; tx.priceAtSell=+d.priceAtSell; tx.fee=+d.fee||0; tx.reasoning=d.reasoning;
+    } else {
+      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.priceAtBuy=+d.priceAtBuy; tx.fee=+d.fee||0; tx.reasoning=d.reasoning;
+    }
+    S.editTxDraft=null; S.view='positions'; saveState(); render();
+  };
+
+  if(d.confirmingDelete){
+    document.getElementById('cancel-delete-btn').onclick = ()=>{ d.confirmingDelete=false; render(); };
+    document.getElementById('confirm-delete-btn').onclick = ()=>{
+      p.transactions = p.transactions.filter(t=>t.id!==d.txId);
+      S.editTxDraft=null; S.view='positions'; saveState(); render();
+    };
+  } else {
+    document.getElementById('delete-tx-btn').onclick = ()=>{ d.confirmingDelete=true; render(); };
+  }
+}
+
+/* ---- Transaction history ---- */
+function computeAssetEvolution(profile, assetId){
+  const events = [];
+  let units=0, costBasis=0;
+  const sorted = profile.transactions.filter(t=>t.assetId===assetId).slice().sort((a,b)=>a.date.localeCompare(b.date));
+  sorted.forEach(tx=>{
+    if(tx.type==='sell'){
+      const avgCost = units>0 ? costBasis/units : 0;
+      const soldUnits = Math.min(tx.units||0, units);
+      const costRemoved = avgCost*soldUnits;
+      const proceeds = soldUnits*(tx.priceAtSell||0) - (tx.fee||0);
+      const realizedGain = proceeds - costRemoved;
+      units -= soldUnits; costBasis -= costRemoved;
+      events.push({tx, runningUnits:Math.max(units,0), runningCostBasis:Math.max(costBasis,0), realizedGain, proceeds});
+    } else if(tx.type==='dividend'){
+      // Doesn't change units or cost basis — it's income, not a new purchase.
+      events.push({tx, runningUnits:units, runningCostBasis:costBasis});
+    } else {
+      costBasis += tx.amountEUR + (tx.fee||0);
+      units += unitsFor(tx);
+      events.push({tx, runningUnits:units, runningCostBasis:costBasis});
+    }
+  });
+  return events;
+}
+
+// Renders one asset's transaction timeline as an HTML fragment — reused both
+// nowhere else historically standalone, but kept as a helper so the expandable
+// row in the Assets view can lazily build this on demand.
+function assetEvolutionHTML(p, assetId, editable){
+  const events = computeAssetEvolution(p, assetId);
+  if(!events.length) return '<div class="hint" style="padding:8px 0;">No transactions yet.</div>';
+  return events.map(ev=>{
+    const tx = ev.tx;
+    const isSell = tx.type==='sell';
+    const isDividend = tx.type==='dividend';
+    const label = isSell ? 'Sold' : (isDividend ? 'Dividend' : 'Bought');
+    const amount = isSell ? ev.proceeds : tx.amountEUR;
+    return `<div class="evo-item ${isSell?'is-sell':''}${isDividend?' is-dividend':''}">
+      <div class="evo-line" style="align-items:flex-start;">
+        <div>
+          <div class="evo-date">${tx.date}</div>
+          <div style="margin-top:2px;">
+            <span style="font-size:13px;font-weight:650;">${label} ${fmtEUR(amount)}</span>
+          </div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${isSell?`<span class="num ${ev.realizedGain>=0?'delta-up':'delta-down'}" style="font-size:12.5px;font-weight:650;">${fmtEUR(ev.realizedGain)}</span>`:''}
+          ${editable?`<button data-edit-tx="${tx.id}" class="btn-ghost" style="width:auto;padding:4px 8px;font-size:11.5px;color:var(--accent-2);">Edit</button>`:''}
+        </div>
+      </div>
+      ${isDividend?'':`<div class="evo-running">${ev.runningUnits.toFixed(4)} units held · cost basis ${fmtEUR(ev.runningCostBasis)}${tx.origCurrency?` · paid ${tx.origAmount.toFixed(2)} ${tx.origCurrency} @ rate ${tx.fxRate.toFixed(4)}`:''}</div>`}
+      ${tx.reasoning?`<div class="evo-reason">${escapeHTML(tx.reasoning)}</div>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ---- Contribution flow (register purchases you've already made) ---- */
+function startContribution(p, prefill){
+  const first = freshPurchase(p, prefill?.bucket);
+  if(prefill?.assetId) first.assetId = prefill.assetId;
+  S.contribDraft = { purchases: [first] };
+  S.view='contribute';
+  render();
+}
+
+const FX_CURRENCIES = ['EUR','USD','GBP','CHF','JPY','PLN','CAD','AUD','SEK','NOK'];
+
+function freshPurchase(p, bucket){
+  return {pid:uid(), bucket: bucket||'long', assetId:null, newAsset:null, amountEUR:'', price:'', fee:0, reasoning:'', date: todayISO(), currency:'EUR', fxRate:1};
+}
+
+function purchaseEurAmount(pk){
+  const rate = pk.currency==='EUR' ? 1 : (+pk.fxRate||0);
+  return (+pk.amountEUR||0) * rate;
+}
+
+function purchaseIsValid(pk){
+  if(!pk.bucket || !pk.assetId || !pk.reasoning || !pk.date) return false;
+  if(!((+pk.amountEUR||0)>0) || !((+pk.price||0)>0)) return false;
+  if(pk.currency!=='EUR' && !((+pk.fxRate||0)>0)) return false;
+  if(pk.assetId==='__new__') return !!(pk.newAsset && pk.newAsset.name);
+  return true;
+}
+
+function renderContributeFlow(main, p){
+  const d = S.contribDraft;
+  const purchases = d.purchases;
+
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-contrib">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Register a purchase</div>
+    <p class="explainer" style="margin:0 0 16px;">This just registers what you're buying elsewhere — enter each purchase and which bucket it belongs to; the split works itself out from what you log.</p>
+    ${d.justSaved?`<div class="card card-sm" style="margin-bottom:14px;border-color:rgba(34,197,94,.35);background:var(--green-soft);"><span style="font-size:12.5px;font-weight:650;color:var(--green);">Saved ${d.justSaved} purchase${d.justSaved>1?'s':''} — finish this one whenever you're ready.</span></div>`:''}
+
+    <div id="purchases-list"></div>
+    <button class="btn btn-ghost" id="add-purchase" style="margin:6px 0 16px;">+ Add another purchase</button>
+
+    <div class="card card-sm" style="margin-bottom:16px;">
+      <div class="row" style="margin-bottom:8px;">
+        <span style="font-size:12.5px;color:var(--text-dim);">Logged so far</span>
+        <span class="num" id="grand-total-val" style="font-weight:650;">€0.00</span>
+      </div>
+      <div class="row" id="bucket-breakdown" style="font-size:11.5px;color:var(--text-faint);"></div>
+      <div class="hint" style="margin-top:8px;">Target this month, for reference: €${p.plan.monthlyAmount}</div>
+    </div>
+
+    <button class="btn btn-primary" id="save-contrib" disabled>Save & stamp</button>
+  `;
+  delete d.justSaved;
+
+  document.getElementById('cancel-contrib').onclick = ()=>{ S.contribDraft=null; S.view='home'; render(); };
+
+  function updateFooter(){
+    const totals = {long:0, div:0, spec:0};
+    purchases.forEach(pk=>{ totals[pk.bucket] += purchaseEurAmount(pk); });
+    const grandTotal = totals.long+totals.div+totals.spec;
+    document.getElementById('grand-total-val').textContent = fmtEUR(grandTotal);
+    document.getElementById('bucket-breakdown').innerHTML = grandTotal>0 ? `
+      <span class="dot-long">Long ${fmtEUR(totals.long)}</span>
+      <span class="dot-div">Div ${fmtEUR(totals.div)}</span>
+      <span class="dot-spec">Spec ${fmtEUR(totals.spec)}</span>` : '';
+    const readyCount = purchases.filter(purchaseIsValid).length;
+    const saveBtn = document.getElementById('save-contrib');
+    saveBtn.disabled = readyCount===0;
+    saveBtn.textContent = readyCount>0 ? `Save ${readyCount} purchase${readyCount>1?'s':''} & stamp` : 'Save & stamp';
+  }
+
+  function renderList(){
+    const list = document.getElementById('purchases-list');
+    function updateTotalOut(pk){
+      const el = document.getElementById(`total-out-${pk.pid}`);
+      if(!el) return;
+      const nativeTotal = (+pk.amountEUR||0) + (+pk.fee||0);
+      if(pk.currency==='EUR'){
+        el.textContent = `Total leaving your account: ${fmtEUR(nativeTotal)}`;
+      } else {
+        const rate = +pk.fxRate||0;
+        const eurTotal = rate>0 ? (purchaseEurAmount(pk) + (+pk.fee||0)) : null;
+        el.textContent = `Total leaving your account: ${nativeTotal.toFixed(2)} ${pk.currency}` + (eurTotal!==null ? ` (≈ ${fmtEUR(eurTotal)})` : (pk.fxFailed?' — enter a rate above to see the EUR equivalent':' — fetching exchange rate…'));
+      }
+    }
+    list.innerHTML = purchases.map((pk,i)=>{
+      const existingAssets = pk.bucket ? assetsFor(p, pk.bucket) : [];
+      return `
+      <div class="card card-sm" style="margin-bottom:12px;">
+        ${purchases.length>1?`<div class="row" style="margin-bottom:10px;"><span style="font-size:12px;color:var(--text-faint);font-weight:650;">Purchase ${i+1}</span><button data-remove="${pk.pid}" class="btn-ghost" style="width:auto;padding:4px 8px;color:var(--red);font-size:12px;">Remove</button></div>`:''}
+        <div class="field">
+          <label>Bucket</label>
+          <div class="chip-select" data-bucket-select="${pk.pid}">
+            ${BUCKETS.map(b=>`<button data-bucket-opt="${b.id}" class="${pk.bucket===b.id?'active':''}">${b.short}</button>`).join('')}
+          </div>
+        </div>
+        <div class="field">
+          <label>Asset</label>
+          <select data-asset="${pk.pid}">
+            <option value="">— choose —</option>
+            ${existingAssets.map(a=>`<option value="${a.id}" ${pk.assetId===a.id?'selected':''}>${a.ticker!==a.name?a.ticker+' — '+a.name:a.name}</option>`).join('')}
+            <option value="__new__" ${pk.assetId==='__new__'?'selected':''}>+ Add new asset</option>
+          </select>
+        </div>
+        <div data-newfields="${pk.pid}" class="${pk.assetId==='__new__'?'':'hidden'}">
+          <div class="field-row">
+            <div class="field">
+              <label>${pk.newAsset?.type==='Crypto'?'Symbol (e.g. BTC)':'What\'s it called?'}</label>
+              <input type="text" data-na-name="${pk.pid}" value="${pk.newAsset?.name||''}" placeholder="${pk.newAsset?.type==='Crypto'?'e.g. BTC':'e.g. Vanguard FTSE All-World'}" />
+            </div>
+            <div class="field"><label>Type</label>
+              <select data-na-type="${pk.pid}">${ASSET_TYPES.map(t=>`<option ${pk.newAsset?.type===t?'selected':''}>${t}</option>`).join('')}</select>
+            </div>
+          </div>
+          ${pk.newAsset?.type==='Crypto'?'<div class="hint" style="margin:-4px 0 12px;">Use the standard symbol (BTC, ETH, etc.) so live pricing can find it automatically.</div>':''}
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Currency</label>
+            <select data-currency="${pk.pid}">${FX_CURRENCIES.map(c=>`<option ${pk.currency===c?'selected':''}>${c}</option>`).join('')}</select>
+          </div>
+          <div class="field ${pk.currency==='EUR'?'hidden':''}">
+            <label>Rate to EUR</label>
+            <div class="hint" id="fx-status-${pk.pid}" style="margin-top:11px;">Fetching automatically…</div>
+            <div class="${pk.fxFailed?'':'hidden'}" data-fxfallback="${pk.pid}" style="margin-top:6px;display:flex;gap:6px;">
+              <input type="number" data-fxrate="${pk.pid}" value="${pk.fxRate||''}" step="0.0001" min="0" placeholder="Enter rate manually" style="flex:1;" />
+              <button data-fxlookup="${pk.pid}" class="btn-ghost" style="width:auto;padding:0 10px;font-size:11.5px;">Retry</button>
+            </div>
+          </div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Price per unit paid (${pk.currency})</label><input type="number" data-price="${pk.pid}" value="${pk.price}" step="0.01" min="0" /></div>
+          <div class="field"><label>Order value (${pk.currency})</label><input type="number" data-amount="${pk.pid}" value="${pk.amountEUR}" step="0.01" min="0" placeholder="0.00" /></div>
+        </div>
+        <div class="field-row">
+          <div class="field"><label>Date of purchase</label><input type="date" data-date="${pk.pid}" value="${pk.date}" max="${todayISO()}" /></div>
+          <div class="field"><label>Fee (${pk.currency}) — added on top</label><input type="number" data-fee="${pk.pid}" value="${pk.fee}" step="0.01" min="0" /></div>
+        </div>
+        <div class="field">
+          <div class="hint" id="total-out-${pk.pid}"></div>
+        </div>
+        <div class="field">
+          <label>Why this pick? (required)</label>
+          <textarea data-reasoning="${pk.pid}" placeholder="What's your reasoning?">${pk.reasoning}</textarea>
+        </div>
+      </div>`;
+    }).join('');
+
+    purchases.forEach(pk=>{
+      list.querySelectorAll(`[data-bucket-select="${pk.pid}"] [data-bucket-opt]`).forEach(btn=>{
+        btn.onclick = ()=>{
+          if(pk.bucket===btn.dataset.bucketOpt) return;
+          pk.bucket = btn.dataset.bucketOpt;
+          pk.assetId = null; pk.newAsset = null; // asset choices are bucket-scoped
+          renderList(); updateFooter();
+        };
+      });
+      const sel = list.querySelector(`[data-asset="${pk.pid}"]`);
+      sel.onchange = e=>{
+        pk.assetId = e.target.value;
+        if(pk.assetId==='__new__'){
+          if(!pk.newAsset) pk.newAsset={type:'ETF',name:''};
+        } else if(pk.assetId) {
+          const known = currentPrice(p, pk.assetId);
+          if(known) pk.price = known; // prefill with last known price, still editable
+        }
+        renderList(); updateFooter();
+      };
+      if(pk.assetId==='__new__'){
+        list.querySelector(`[data-na-type="${pk.pid}"]`).onchange = e=>{ pk.newAsset.type=e.target.value; renderList(); };
+        list.querySelector(`[data-na-name="${pk.pid}"]`).oninput = e=>{ pk.newAsset.name=e.target.value; updateFooter(); };
+      }
+      list.querySelector(`[data-currency="${pk.pid}"]`).onchange = e=>{
+        pk.currency = e.target.value;
+        if(pk.currency==='EUR'){ pk.fxRate = 1; pk.fxFailed=false; }
+        else { pk.fxRate = 0; pk.fxFailed = false; } // unknown until the auto-fetch resolves
+        renderList(); updateFooter();
+        if(pk.currency!=='EUR') autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
+      };
+      const fxInput = list.querySelector(`[data-fxrate="${pk.pid}"]`);
+      if(fxInput) fxInput.oninput = e=>{ pk.fxRate=Math.max(+e.target.value,0); updateTotalOut(pk); updateFooter(); };
+      const fxBtn = list.querySelector(`[data-fxlookup="${pk.pid}"]`);
+      if(fxBtn) fxBtn.onclick = ()=>autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
+      list.querySelector(`[data-price="${pk.pid}"]`).oninput = e=>{ pk.price=e.target.value===''?'':Math.max(+e.target.value,0); updateFooter(); };
+      list.querySelector(`[data-amount="${pk.pid}"]`).oninput = e=>{ pk.amountEUR=e.target.value===''?'':Math.max(+e.target.value,0); updateTotalOut(pk); updateFooter(); };
+      list.querySelector(`[data-fee="${pk.pid}"]`).oninput = e=>{ pk.fee=Math.max(+e.target.value,0); updateTotalOut(pk); };
+      list.querySelector(`[data-date="${pk.pid}"]`).onchange = e=>{
+        pk.date=e.target.value; updateFooter();
+        if(pk.currency!=='EUR') autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
+      };
+      list.querySelector(`[data-reasoning="${pk.pid}"]`).oninput = e=>{ pk.reasoning=e.target.value; updateFooter(); };
+      updateTotalOut(pk);
+      if(pk.currency!=='EUR' && !pk.fxRate && !pk.fxFailed) autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
+      const removeBtn = list.querySelector(`[data-remove="${pk.pid}"]`);
+      if(removeBtn) removeBtn.onclick = ()=>{
+        d.purchases = purchases.filter(x=>x.pid!==pk.pid);
+        renderContributeFlow(main, p);
+      };
+    });
+  }
+
+  renderList();
+  updateFooter();
+
+  document.getElementById('add-purchase').onclick = ()=>{
+    purchases.push(freshPurchase(p));
+    renderContributeFlow(main, p);
+  };
+
+  document.getElementById('save-contrib').onclick = ()=>{
+    const ready = purchases.filter(purchaseIsValid);
+    if(!ready.length) return; // shouldn't happen since button is disabled, but guard anyway
+    ready.forEach(pk=>{
+      const fxRate = pk.currency==='EUR' ? 1 : (+pk.fxRate||0);
+      const eurPrice = (+pk.price)*fxRate;
+      const eurAmount = (+pk.amountEUR)*fxRate;
+      const eurFee = (+pk.fee||0)*fxRate;
+
+      if(pk.assetId==='__new__'){
+        const na = pk.newAsset;
+        const newId = uid();
+        p.assets.push({id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0});
+        p.prices[newId] = {price:eurPrice, asOf:new Date().toISOString(), currency:'EUR'};
+        pk.finalAssetId = newId;
+      } else {
+        pk.finalAssetId = pk.assetId;
+        // Only let this purchase's price become the newly tracked current price if
+        // it's actually the most recent data point we have — a backdated entry
+        // shouldn't overwrite a more recent live-refreshed or later-dated price.
+        const existing = p.prices[pk.assetId];
+        const newAsOf = new Date(pk.date).toISOString();
+        if(!existing || newAsOf >= existing.asOf){
+          p.prices[pk.assetId] = {price:eurPrice, asOf:newAsOf, currency:'EUR'};
+        }
+      }
+      p.transactions.push({
+        id:uid(), date:pk.date||todayISO(), bucket:pk.bucket, assetId:pk.finalAssetId,
+        amountEUR: eurAmount, priceAtBuy: eurPrice, reasoning: pk.reasoning, fee: eurFee,
+        origCurrency: pk.currency!=='EUR' ? pk.currency : undefined,
+        origAmount: pk.currency!=='EUR' ? +pk.amountEUR : undefined,
+        origPrice: pk.currency!=='EUR' ? +pk.price : undefined,
+        fxRate: pk.currency!=='EUR' ? fxRate : undefined
+      });
+    });
+    saveState();
+    // Leave any incomplete entries in the draft so they can be finished later; only clear if all were saved.
+    d.purchases = purchases.filter(pk=>!purchaseIsValid(pk));
+    if(d.purchases.length===0){
+      S.contribDraft=null; S.view='home'; render();
+    } else {
+      d.justSaved = ready.length;
+      renderContributeFlow(main, p);
+    }
+  };
+}
+
+/* ---- Positions ---- */
+function renderPositions(main, p){
+  if(!S.expandedAssets) S.expandedAssets = {};
+  const positions = positionsFor(p).filter(pos=>pos.asset);
+  const totalFees = positions.reduce((s,pos)=>s+pos.feesPaid,0);
+  main.innerHTML = `
+    <div class="row" style="margin-bottom:14px;">
+      <div class="page-title" style="margin:0;">Assets</div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost" style="width:auto;padding:8px 12px;" id="export-btn">Export</button>
+        <button class="btn ${S.historyEditMode?'':'btn-ghost'}" style="width:auto;padding:8px 12px;${S.historyEditMode?'background:var(--amber);border-color:var(--amber);color:#1a1305;font-weight:700;':''}" id="toggle-edit-mode">${S.historyEditMode?'Done correcting':'Correct'}</button>
+      </div>
+    </div>
+    <button class="btn btn-primary" id="register-tx-btn-activity" style="margin-bottom:14px;">+ Register transaction</button>
+    ${S.historyEditMode?'<p class="hint" style="margin:0 0 14px;">Tap an asset to open it, then Edit on any entry to fix a mistake.</p>':''}
+    ${totalFees>0?`<div class="card card-sm row" style="margin-bottom:14px;"><span style="font-size:12.5px;color:var(--text-dim);">Total fees paid</span><span class="num" style="font-size:13.5px;font-weight:650;">${fmtEUR(totalFees)}</span></div>`:''}
+    ${BUCKETS.map(b=>{
+      const bp = positions.filter(pos=>pos.asset.bucket===b.id);
+      if(!bp.length) return '';
+      return `<div class="card">
+        <div class="card-title ${b.color}">${b.name}</div>
+        ${bp.map(pos=>{
+          const expanded = !!S.expandedAssets[pos.assetId];
+          return `
+          <div class="pos-row" data-toggle="${pos.assetId}" style="cursor:pointer;">
+            <div class="pos-left">
+              <div class="pos-badge">${pos.asset.ticker.slice(0,4)}</div>
+              <div>
+                <div class="pos-name">${pos.asset.name}</div>
+                <div class="pos-sub">${pos.asset.type} · cost ${fmtEUR(pos.costBasis)}${pos.feesPaid>0?` · fees ${fmtEUR(pos.feesPaid)}`:''}${pos.dividendsReceived>0?` · dividends ${fmtEUR(pos.dividendsReceived)}`:''}${pos.units<=0.0000001?' · closed':''}</div>
+              </div>
+            </div>
+            <div class="pos-right" style="display:flex;align-items:center;gap:8px;">
+              <div>
+                <div class="pos-val">${fmtEUR(pos.value)}</div>
+                <div class="pos-delta ${pos.gain>=0?'delta-up':'delta-down'}">${fmtPct(pos.gainPct)}</div>
+              </div>
+              <button data-buy="${pos.assetId}" data-bucket="${pos.asset.bucket}" class="action-pill">↑ Buy</button>
+              ${pos.units>0.0000001?`<button data-sell="${pos.assetId}" class="action-pill">↓ Sell</button>`:''}
+            </div>
+          </div>
+          <div class="${expanded?'':'hidden'}" style="padding:4px 0 14px 4px;" data-evo="${pos.assetId}">
+            ${expanded ? assetEvolutionHTML(p, pos.assetId, S.historyEditMode) : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('') || '<div class="empty-state">No assets yet — register your first purchase from Home.</div>'}
+  `;
+
+  document.getElementById('export-btn').onclick = ()=>{ startExport({type:'account', profile:p}); };
+  document.getElementById('register-tx-btn-activity').onclick = ()=>{ S.view='register-choice'; render(); };
+  document.getElementById('toggle-edit-mode').onclick = ()=>{ S.historyEditMode = !S.historyEditMode; render(); };
+  main.querySelectorAll('[data-edit-tx]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); startEditTransaction(p, btn.dataset.editTx); };
+  });
+  main.querySelectorAll('[data-toggle]').forEach(row=>{
+    row.onclick = (e)=>{
+      if(e.target.closest('[data-buy],[data-sell],[data-edit-tx]')) return; // let action buttons handle their own click
+      const id = row.dataset.toggle;
+      S.expandedAssets[id] = !S.expandedAssets[id];
+      render();
+    };
+  });
+  main.querySelectorAll('[data-sell]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); startSell(p, btn.dataset.sell); };
+  });
+  main.querySelectorAll('[data-buy]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); startContribution(p, {bucket:btn.dataset.bucket, assetId:btn.dataset.buy}); };
+  });
+}
+
+/* ---- Family History (read-only overview across all accounts) ---- */
+function renderFamilyPositions(main){
+  if(!S.expandedAssets) S.expandedAssets = {};
+  const rows = [];
+  S.profiles.forEach(profile=>{
+    positionsFor(profile).filter(pos=>pos.asset).forEach(pos=>{
+      rows.push({profile, pos});
+    });
+  });
+
+  main.innerHTML = `
+    <div class="row" style="margin-bottom:10px;">
+      <div class="page-title" style="margin:0;">Assets</div>
+      <button class="btn btn-ghost" style="width:auto;padding:8px 12px;" id="export-btn">Export</button>
+    </div>
+    <div class="card card-sm" style="margin-bottom:14px;border-color:rgba(59,130,246,.3);background:var(--accent-soft);">
+      <span style="font-size:12.5px;font-weight:600;color:var(--accent-2);">In order to buy or sell assets, go to your account.</span>
+    </div>
+    ${BUCKETS.map(b=>{
+      const bp = rows.filter(r=>r.pos.asset.bucket===b.id);
+      if(!bp.length) return '';
+      return `<div class="card">
+        <div class="card-title ${b.color}">${b.name}</div>
+        ${bp.map(({profile,pos})=>{
+          const expanded = !!S.expandedAssets[pos.assetId];
+          return `
+          <div class="pos-row" data-toggle="${pos.assetId}" style="cursor:pointer;">
+            <div class="pos-left">
+              <div class="pos-badge">${pos.asset.ticker.slice(0,4)}</div>
+              <div>
+                <div class="pos-name">${pos.asset.name}</div>
+                <div class="pos-sub">${escapeHTML(profile.name)} · ${pos.asset.type} · cost ${fmtEUR(pos.costBasis)}${pos.units<=0.0000001?' · closed':''}</div>
+              </div>
+            </div>
+            <div class="pos-right">
+              <div class="pos-val">${fmtEUR(pos.value)}</div>
+              <div class="pos-delta ${pos.gain>=0?'delta-up':'delta-down'}">${fmtPct(pos.gainPct)}</div>
+            </div>
+          </div>
+          <div class="${expanded?'':'hidden'}" style="padding:4px 0 14px 4px;" data-evo="${pos.assetId}">
+            ${expanded ? assetEvolutionHTML(profile, pos.assetId, false) : ''}
+          </div>`;
+        }).join('')}
+      </div>`;
+    }).join('') || '<div class="empty-state">No assets registered yet across the family.</div>'}
+  `;
+
+  document.getElementById('export-btn').onclick = ()=>{ startExport({type:'family'}); };
+  main.querySelectorAll('[data-toggle]').forEach(row=>{
+    row.onclick = ()=>{
+      const id = row.dataset.toggle;
+      S.expandedAssets[id] = !S.expandedAssets[id];
+      render();
+    };
+  });
+}
+
+/* ---- Export to Excel ---- */
+function monthRangeArray(startDate, endDate){
+  const months = [];
+  let d = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+  const end = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+  while(d<=end){
+    months.push({y:d.getFullYear(), m:d.getMonth(), label:d.toLocaleDateString('en-US',{month:'short',year:'numeric'})});
+    d = new Date(d.getFullYear(), d.getMonth()+1, 1);
+  }
+  return months;
+}
+
+function scopeTransactions(scope){
+  if(scope.type==='family'){
+    const all = [];
+    S.profiles.forEach(profile=>profile.transactions.forEach(tx=>all.push({profile,tx})));
+    return all;
+  }
+  return scope.profile.transactions.map(tx=>({profile:scope.profile, tx}));
+}
+
+function startExport(scope){
+  const pairs = scopeTransactions(scope);
+  const today = new Date();
+  let minDate = today;
+  pairs.forEach(({tx})=>{ const d=new Date(tx.date); if(d<minDate) minDate=d; });
+  if(!pairs.length) minDate = today;
+  const months = monthRangeArray(minDate, today);
+  S.exportDraft = { scope, months, startIdx:0, endIdx: months.length-1 };
+  S.view='export';
+  render();
+}
+
+function renderExport(main){
+  const d = S.exportDraft;
+  if(!d){ S.view='positions'; render(); return; }
+  const months = d.months;
+  const backView = d.scope.type==='family' ? 'positions' : 'positions';
+
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-export">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Export report</div>
+    <p class="hint" style="margin:0 0 16px;">${d.scope.type==='family'?'Combined across all accounts.':`For ${escapeHTML(d.scope.profile.name)}.`}</p>
+
+    <div class="range-preset-row">
+      <button data-preset="this-month">This month</button>
+      <button data-preset="last-3">Last 3 months</button>
+      <button data-preset="last-6">Last 6 months</button>
+      <button data-preset="ytd">This year</button>
+      <button data-preset="all">All time</button>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="margin-bottom:0;">Period</div>
+      <div class="row" style="margin-top:10px;font-size:13px;font-weight:650;">
+        <span id="range-label-start">${months[d.startIdx]?.label||''}</span>
+        <span style="color:var(--text-faint);">to</span>
+        <span id="range-label-end">${months[d.endIdx]?.label||''}</span>
+      </div>
+      <div class="dual-range">
+        <div class="track-bg"></div>
+        <div class="track-fill" id="range-fill"></div>
+        <input type="range" id="range-start" min="0" max="${Math.max(months.length-1,0)}" value="${d.startIdx}" />
+        <input type="range" id="range-end" min="0" max="${Math.max(months.length-1,0)}" value="${d.endIdx}" />
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="download-btn" style="margin-top:16px;" ${months.length?'':'disabled'}>Download Excel (.xlsx)</button>
+    ${!months.length?'<div class="empty-state">No transactions yet to export.</div>':''}
+  `;
+
+  document.getElementById('cancel-export').onclick = ()=>{ S.exportDraft=null; S.view=backView; render(); };
+
+  const startInput = document.getElementById('range-start');
+  const endInput = document.getElementById('range-end');
+  function updateSlider(){
+    let s = +startInput.value, e = +endInput.value;
+    if(s>e){ [s,e] = [e,s]; }
+    d.startIdx = s; d.endIdx = e;
+    document.getElementById('range-label-start').textContent = months[s]?.label||'';
+    document.getElementById('range-label-end').textContent = months[e]?.label||'';
+    const max = Math.max(months.length-1,1);
+    const fill = document.getElementById('range-fill');
+    fill.style.left = (s/max*100)+'%';
+    fill.style.width = ((e-s)/max*100)+'%';
+    document.querySelectorAll('.range-preset-row button').forEach(b=>b.classList.remove('active'));
+  }
+  if(months.length){
+    startInput.oninput = ()=>{ if(+startInput.value > +endInput.value) startInput.value = endInput.value; updateSlider(); };
+    endInput.oninput = ()=>{ if(+endInput.value < +startInput.value) endInput.value = startInput.value; updateSlider(); };
+    updateSlider();
+  }
+
+  function setPreset(startIdx, endIdx){
+    startInput.value = startIdx; endInput.value = endIdx;
+    updateSlider();
+  }
+  document.querySelectorAll('[data-preset]').forEach(btn=>{
+    btn.onclick = ()=>{
+      const lastIdx = months.length-1;
+      const now = new Date();
+      if(btn.dataset.preset==='this-month'){ setPreset(lastIdx, lastIdx); }
+      else if(btn.dataset.preset==='last-3'){ setPreset(Math.max(lastIdx-2,0), lastIdx); }
+      else if(btn.dataset.preset==='last-6'){ setPreset(Math.max(lastIdx-5,0), lastIdx); }
+      else if(btn.dataset.preset==='ytd'){
+        const janIdx = months.findIndex(mo=>mo.y===now.getFullYear() && mo.m===0);
+        setPreset(janIdx>=0?janIdx:0, lastIdx);
+      }
+      else if(btn.dataset.preset==='all'){ setPreset(0, lastIdx); }
+      btn.classList.add('active');
+    };
+  });
+
+  document.getElementById('download-btn').onclick = ()=>downloadExportExcel(d);
+}
+
+function generateReportRows(scope, months, startIdx, endIdx){
+  const startKey = months[startIdx].y*12+months[startIdx].m;
+  const endKey = months[endIdx].y*12+months[endIdx].m;
+  const profiles = scope.type==='family' ? S.profiles : [scope.profile];
+  const rows = [];
+  profiles.forEach(profile=>{
+    const assetIds = [...new Set(profile.transactions.map(t=>t.assetId))];
+    assetIds.forEach(assetId=>{
+      // Even if the asset record is somehow missing (shouldn't normally happen),
+      // still include its transactions rather than silently dropping them —
+      // otherwise this total could quietly disagree with "Invested so far",
+      // which counts every transaction regardless of asset lookup.
+      const asset = profile.assets.find(a=>a.id===assetId);
+      computeAssetEvolution(profile, assetId).forEach(ev=>{
+        const tx = ev.tx;
+        const txDate = new Date(tx.date);
+        const key = txDate.getFullYear()*12+txDate.getMonth();
+        if(key<startKey || key>endKey) return;
+        const isSell = tx.type==='sell';
+        const isDividend = tx.type==='dividend';
+        const bucket = BUCKETS.find(b=>b.id===tx.bucket);
+        rows.push({
+          'Date': tx.date,
+          'Account': profile.name,
+          'Bucket': bucket?bucket.short:'',
+          'Asset': asset?asset.name:'(unknown asset)',
+          'Action': isSell?'Sell':(isDividend?'Dividend':'Buy'),
+          'Amount (EUR)': isSell ? +ev.proceeds.toFixed(2) : +tx.amountEUR.toFixed(2),
+          'Price per unit (EUR)': isSell ? tx.priceAtSell : (isDividend?'':tx.priceAtBuy),
+          'Fee (EUR)': tx.fee||0,
+          'Original currency': tx.origCurrency||'',
+          'Original amount': tx.origAmount||'',
+          'Units held after': isDividend?'':+ev.runningUnits.toFixed(6),
+          'Cost basis after (EUR)': isDividend?'':+ev.runningCostBasis.toFixed(2),
+          'Realized gain/loss (EUR)': isSell ? +ev.realizedGain.toFixed(2) : '',
+          'Reasoning': tx.reasoning||''
+        });
+      });
+    });
+  });
+  rows.sort((a,b)=>a.Date.localeCompare(b.Date));
+  return rows;
+}
+
+function downloadExportExcel(d){
+  const rows = generateReportRows(d.scope, d.months, d.startIdx, d.endIdx);
+  if(!rows.length){ alert('No transactions in that period.'); return; }
+  if(typeof XLSX==='undefined'){ alert("Couldn't load the Excel library — check your connection and try again."); return; }
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Transactions');
+  const label = d.scope.type==='family' ? 'family' : d.scope.profile.name.replace(/[^a-z0-9]/gi,'');
+  const filename = `diy-fund-${label}-${d.months[d.startIdx].label.replace(' ','')}-${d.months[d.endIdx].label.replace(' ','')}.xlsx`;
+  XLSX.writeFile(wb, filename);
+}
+
+/* ---- Tax ---- */
+function renderTax(main, p){
+  main.innerHTML = `
+    <div class="page-title">Tax</div>
+    <div class="tabs2">
+      <button data-tax="asset" class="${S.taxSubview==='asset'?'active':''}">Per-Asset</button>
+      <button data-tax="portfolio" class="${S.taxSubview==='portfolio'?'active':''}">Portfolio Estimate</button>
+    </div>
+    <div id="tax-body"></div>
+    <p class="explainer" style="margin-top:12px;">Estimates only, modeling Belgium's 2026 capital-gains regime (10% flat rate, €10,000 annual exemption, Reynders tax on the interest-bearing portion of bond funds). Realized gains (from actual sells) are what's actually taxable; unrealized figures are hypothetical "if you sold today." Dividends shown here are recorded as income but aren't run through Belgium's separate dividend withholding tax rules (typically ~30%, often already deducted before you receive the payment) — this app doesn't model that. Not filing guidance — check FPS Finance or a tax adviser for anything you actually plan to declare.</p>
+  `;
+  main.querySelectorAll('[data-tax]').forEach(b=>b.onclick=()=>{ S.taxSubview=b.dataset.tax; render(); });
+  const body = document.getElementById('tax-body');
+  if(S.taxSubview==='asset'){
+    const year = new Date().getFullYear();
+    const positions = positionsFor(p).filter(pos=>pos.asset).map(pos=>({
+      pos, yearRealized: realizedGainInYear(p, pos.assetId, year)
+    })).filter(x=>x.pos.gain!==0 || x.yearRealized!==0 || x.pos.dividendsReceived>0);
+    body.innerHTML = `<div class="card">
+      ${positions.length?positions.map(({pos,yearRealized})=>{
+        const t = assetTax(p,pos);
+        const rows = [];
+        if(pos.gain!==0) rows.push(`<div class="taxline">
+          <span>${pos.asset.ticker} <span class="flag" style="background:var(--accent-soft);color:var(--accent-2);">Unrealized</span>${t.note?`<span class="flag">Reynders</span>`:''}</span>
+          <span class="num ${pos.gain>=0?'delta-up':'delta-down'}">${fmtEUR(pos.gain)}</span>
+        </div>`);
+        if(yearRealized!==0){
+          const rt = assetTaxRealized(p,pos,year);
+          rows.push(`<div class="taxline">
+            <span>${pos.asset.ticker} <span class="flag" style="background:var(--green-soft);color:var(--green);">Realized ${year}</span>${rt.note?`<span class="flag">Reynders</span>`:''}</span>
+            <span class="num ${yearRealized>=0?'delta-up':'delta-down'}">${fmtEUR(yearRealized)}</span>
+          </div>`);
+        }
+        if(pos.dividendsReceived>0){
+          rows.push(`<div class="taxline">
+            <span>${pos.asset.ticker} <span class="flag" style="background:var(--green-soft);color:var(--green);">Dividends</span></span>
+            <span class="num delta-up">${fmtEUR(pos.dividendsReceived)}</span>
+          </div>`);
+        }
+        return rows.join('');
+      }).join(''):'<div class="empty-state" style="padding:10px 0;">No gains or completed sells yet.</div>'}
+    </div>
+    <p class="explainer" style="margin-top:10px;">"Realized" here means sold within ${year} — Belgium's exemption resets each calendar year, so a sale from an earlier year doesn't count against this year's allowance.</p>`;
+  } else {
+    const sum = householdTaxSummary();
+    const familySlices = buildFamilySlices();
+    const pct = Math.min(sum.realizedGain/sum.exemption*100,100);
+    body.innerHTML = `<div class="card">
+      <div class="card-title">Combined across all accounts — realized (taxable)</div>
+      <div class="exempt-ring-wrap">
+        <div class="exempt-figs">
+          <div class="big">${fmtEUR(sum.realizedGain)}</div>
+          <div class="small">realized gain this year</div>
+        </div>
+      </div>
+      <div class="goal-bar-track"><div class="goal-bar-fill" style="width:${pct}%"></div></div>
+      <div class="goal-figs" style="margin-bottom:14px;">
+        <span>Exemption used <b>${fmtEUR(Math.min(sum.realizedGain,sum.exemption))}</b></span>
+        <span>of <b>${fmtEUR(sum.exemption)}</b></span>
+      </div>
+      <div class="taxline"><span>Taxable above exemption</span><span class="num">${fmtEUR(sum.taxableAboveExemption)}</span></div>
+      <div class="taxline"><span>Reynders tax (bond funds)</span><span class="num">${fmtEUR(sum.realizedReynders)}</span></div>
+      <div class="taxline"><span><b>Est. tax owed</b></span><span class="num"><b>${fmtEUR(sum.estTax)}</b></span></div>
+    </div>
+    <div class="card card-sm">
+      <div class="card-title">If you sold everything today (hypothetical)</div>
+      <div class="taxline"><span>Unrealized gain, all accounts</span><span class="num">${fmtEUR(sum.unrealizedGain)}</span></div>
+      <div class="taxline"><span>Reynders portion (bond funds)</span><span class="num">${fmtEUR(sum.unrealizedReynders)}</span></div>
+      <div class="hint" style="margin-top:6px;">Not taxable until actually sold — shown for reference only.</div>
+    </div>
+    ${familySlices.length ? `
+    <div class="card">
+      <div class="card-title">Family Mix</div>
+      <div style="display:flex;gap:18px;align-items:center;">
+        <canvas id="family-diversify-chart" style="width:110px;height:110px;flex-shrink:0;"></canvas>
+        <div style="flex:1;display:flex;flex-direction:column;gap:7px;min-width:0;">
+          ${diversifyLegendHTML(familySlices)}
+        </div>
+      </div>
+      <div class="hint" style="margin-top:10px;">Combined exposure across all accounts' holdings.</div>
+    </div>` : ''}`;
+    const familyCanvas = document.getElementById('family-diversify-chart');
+    if(familyCanvas) drawDonutChart(familyCanvas, familySlices);
+  }
+}
+
+function buildFamilySlices(){
+  const counters = {long:0, div:0, spec:0};
+  const combined = {};
+  S.profiles.forEach(profile=>{
+    positionsFor(profile).filter(pos=>pos.asset && pos.value>0.0001).forEach(pos=>{
+      const key = pos.asset.bucket+':'+pos.asset.ticker;
+      if(!combined[key]) combined[key] = {label:pos.asset.ticker, bucket:pos.asset.bucket, value:0};
+      combined[key].value += pos.value;
+    });
+  });
+  return Object.values(combined)
+    .map(item=>{
+      const idx = counters[item.bucket]++;
+      return {label:item.label, value:item.value, color:assetSliceColor(item.bucket, idx)};
+    })
+    .sort((a,b)=>b.value-a.value);
+}
+
+/* ---- Learn ---- */
+const LEARN_CONTENT = [
+  {cat:'The basics', items:[
+    {q:'What is a stock?', a:'A small ownership slice of one company. Its value moves with how that company performs — and with how investors feel about its future.'},
+    {q:'What is an ETF?', a:'A single fund that holds many stocks or bonds bundled together. Buying one ETF share spreads your money across everything inside it, which is why they\'re a common building block for the long-term bucket.'},
+    {q:'What is a bond?', a:'A loan you give to a government or company, which pays you back with interest over time. Usually steadier than stocks, but not risk-free — and taxed a bit differently, which the Tax section covers.'},
+    {q:'What are metals and crypto doing here?', a:'Both sit outside traditional stock/bond markets and often move independently of them — sometimes a hedge, sometimes just volatile. That\'s why they tend to land in the speculative bucket.'},
+    {q:'What is compounding?', a:'Growth on your growth. Once an investment gains value, next month that new total can grow too — so returns build on themselves rather than adding up in a straight line. It\'s slow at first and accelerates the longer money stays invested, which is exactly why it matters most for the long-term bucket.'},
+    {q:'What is a savings account, and why does it matter here?', a:'A savings account pays you interest just for keeping money there — no risk of losing what you put in, but much lower growth potential than investing. It\'s the honest baseline this app compares against: if your investments aren\'t beating what a plain savings account would have paid, it\'s worth asking why you\'re taking on the extra risk.'},
+    {q:'What\'s the difference between realized and unrealized gain?', a:'Unrealized means the value went up on paper, but you still hold the asset — nothing\'s actually been gained or lost until you sell. Realized means you\'ve actually sold and locked in the result. This distinction matters a lot for tax, covered further down.'},
+  ]},
+  {cat:'Why diversify your investment', items:[
+    {q:'Why split the money across different buckets at all?', a:'Different goals need different risk levels. Long-term money has years to recover from a dip; speculative money doesn\'t need to, because it\'s a small enough slice that a loss there won\'t derail the whole plan.'},
+    {q:'What does diversifying actually protect against?', a:'No single asset, sector, or bet reliably wins every year. Spreading money across different buckets and asset types means a bad stretch in one area doesn\'t sink the whole plan — diversification is really about managing risk, not a trick for boosting returns on its own.'},
+    {q:'Why compare against a savings account?', a:'It\'s the honest baseline. If your portfolio isn\'t beating what a plain savings account would have paid, it\'s worth asking why you\'re taking on the extra risk.'},
+  ]},
+  {cat:'Market behaviour', items:[
+    {q:'What is inflation?', a:'The slow rise in prices over time, which quietly shrinks what your money can actually buy. A savings account paying less than the inflation rate is technically losing value in real terms, even though the number in the account keeps going up. It\'s one of the main reasons people invest at all — trying to grow money faster than prices rise.'},
+    {q:'What is market volatility?', a:'How much and how fast prices move up and down. High volatility means bigger swings in both directions — more potential gain, but also more potential loss in the short term. Stocks and crypto tend to be more volatile than bonds or cash, which is part of why they sit in different buckets here.'},
+    {q:'What is market sentiment?', a:'The overall mood of investors — optimistic or fearful — about where prices are headed. Sentiment can push prices up or down even when nothing about the actual business or asset has changed, which is why short-term price moves don\'t always reflect real underlying value.'},
+    {q:'What is speculation?', a:'Buying something mainly because you expect its price to rise soon, rather than because of its underlying value or income. It\'s not automatically bad — it\'s just higher risk, which is exactly why the speculative bucket exists as its own category with a deliberately smaller slice.'},
+  ]},
+  {cat:'Tax, fees & costs', items:[
+    {q:'Why do fees matter so much?', a:'A small fee on every purchase doesn\'t look like much in the moment, but it quietly eats into how many units you actually get — and that adds up over years of monthly contributions. It\'s one of the few things about investing you can control directly, which is exactly why it\'s worth tracking.'},
+    {q:'What is tax on investment gains, generally?', a:'Most countries tax the profit you make when an investment grows in value — a "capital gain." The exact rates, exemptions, and rules vary hugely by country, but the basic idea is the same everywhere: you\'re taxed on the gain itself, not on the money you originally put in.'},
+    {q:'What does "tax-efficient" investing mean?', a:'Making sensible choices about when and how you realize gains, given the rules where you live — using any tax-free allowances, avoiding unnecessary buying and selling, and understanding which asset types get taxed differently. It\'s not about avoiding tax illegally — it\'s about not paying more than you actually have to.'},
+    {q:'Belgium\'s tax regime for this plan', a:'Since 2026, Belgium taxes capital gains on financial assets at a flat 10% — but the first €10,000 of gains each person makes in a year is exempt, and it only counts once you actually sell (a realized gain), not just when a holding goes up on paper.'},
+    {q:'Belgium\'s extra rule for bond-heavy funds', a:'On top of the standard regime, Belgium has a long-standing additional rule (officially called the "Reynders tax") that applies specifically to the interest-earning portion of bond funds, taxed separately at 30%. It\'s why bond fund gains get flagged apart from everything else in the Tax tab.'},
+  ]},
+];
+function renderLearn(main){
+  if(!S.expandedLearnCats) S.expandedLearnCats = {};
+  main.innerHTML = `<div class="page-title">Learn</div>` + LEARN_CONTENT.map((cat,i)=>{
+    const expanded = !!S.expandedLearnCats[i];
+    return `
+    <div class="learn-cat">
+      <div class="learn-cat-head" data-learncat="${i}">
+        <h3 style="margin:0;">${cat.cat}</h3>
+        <span class="learn-cat-arrow ${expanded?'open':''}">›</span>
+      </div>
+      <div class="${expanded?'':'hidden'}" data-learnbody="${i}">
+        ${cat.items.map(it=>`<details class="entry"><summary>${it.q}</summary><p>${it.a}</p></details>`).join('')}
+      </div>
+    </div>`;
+  }).join('');
+  main.querySelectorAll('[data-learncat]').forEach(row=>{
+    row.onclick = ()=>{
+      const i = row.dataset.learncat;
+      S.expandedLearnCats[i] = !S.expandedLearnCats[i];
+      render();
+    };
+  });
+}
+
+function escapeHTML(s){ return s.replace(/[&<>]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c])); }
+
+/* ---------------------------- Boot ---------------------------- */
+render();
+window.addEventListener('resize', ()=>{ if(S.view==='home') render(); });
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
