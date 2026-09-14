@@ -185,7 +185,7 @@
   /* Forms */
   .field{margin-bottom:14px;}
   .field label{display:block;font-size:12.5px;font-weight:650;color:var(--text-dim);margin-bottom:6px;}
-  .field input[type=text], .field input[type=number], .field input[type=date], .field input[type=password],
+  .field input[type=text], .field input[type=number], .field input[type=date], .field input[type=password], .field input[type=email],
   .field select, .field textarea{
     width:100%;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;
     padding:11px 12px;color:var(--text);font-size:14px;
@@ -450,7 +450,7 @@ async function loadAllData(){
 
 async function resolveRole(){
   try{
-    const { data, error } = await sb.from('app_roles').select('role').maybeSingle();
+    const { data, error } = await sb.from('app_roles').select('role').eq('user_id', S.session.user.id).maybeSingle();
     if(error) throw error;
     S.myRole = data ? data.role : 'family';
   }catch(e){
@@ -877,7 +877,7 @@ function renderProfileSetup(){
       <div class="page-title">Who's this account for?</div>
       <div class="field">
         <label>Name</label>
-        <input type="text" id="pname" value="${d.name}" placeholder="e.g. Mom, Leo, Mira" />
+        <input type="text" id="pname" value="${d.name}" placeholder="e.g. Max, Pola, Anna" />
       </div>
       <div class="field">
         <label>Tone</label>
@@ -901,7 +901,11 @@ function renderProfileSetup(){
   document.getElementById('next-btn').onclick = ()=>{
     if(!d.name) return;
     S.draftPlan = {
-      goalName:'', horizonYears:3, startDate: todayISO(), monthlyAmount:100,
+      // Anchored to when this project actually started (August 2026), not
+      // whenever a given account happens to get created — so a plan set up
+      // later doesn't wrongly start its clock late. Still editable below if a
+      // specific account genuinely needs a different start.
+      goalName:'', horizonYears:3, startDate: '2026-08-01', monthlyAmount:100,
       buckets:{long:50, div:25, spec:25}, savingsRate:2.0, defaultFeePct:0
     };
     S.setupStage = 'plan';
@@ -1187,6 +1191,8 @@ function renderSettings(main, p){
     <div class="card card-sm">
       <div class="card-title">This account's plan</div>
       <div class="hint" style="margin-bottom:10px;">Editing the plan won't rewrite past contributions.</div>
+      <div class="field"><label>Investment horizon (years)</label><input type="number" id="horizon-input" step="1" min="1" value="${p.plan.horizonYears}" /></div>
+      <div class="field"><label>Start date</label><input type="date" id="startdate-input" value="${p.plan.startDate}" /></div>
       <div class="field"><label>Savings benchmark rate (%)</label><input type="number" id="rate-input" step="0.1" value="${p.plan.savingsRate}" /></div>
       <div class="field"><label>Default broker fee (%)</label><input type="number" id="fee-rate-input" step="0.05" value="${p.plan.defaultFeePct||0}" /></div>
     </div>` : `
@@ -1198,11 +1204,7 @@ function renderSettings(main, p){
       <div class="field" style="margin-bottom:6px;">
         <input type="password" id="api-key-input" value="${S.anthropicApiKey||''}" placeholder="sk-ant-..." />
       </div>
-      <p class="explainer" style="margin:0;">Needed once this app is hosted outside Claude's own preview — powers live price lookups for non-crypto assets (stocks, ETFs, bonds, metals). Get one at <b>console.anthropic.com</b>. Stored only on this device. Since it's visible in this page's source code, keep the hosted URL private rather than sharing it publicly.</p>
-    </div>
-    <div class="card card-sm">
-      <div class="card-title">Hosting this app</div>
-      <p class="explainer" style="margin:0;">For the full installed-app experience (home-screen icon, offline shell, standalone window) on iPhone or Android, this needs to be hosted (even simple static hosting like GitHub Pages or Netlify works). Opened as a local file, most features still work but iOS will use a page screenshot instead of the app icon.</p>
+      <p class="explainer" style="margin:0;">Powers live price lookups for non-crypto assets (stocks, ETFs, bonds, metals). Get one at <b>console.anthropic.com</b>. Shared across the household — one person entering it here covers everyone.</p>
     </div>
     <button class="btn btn-ghost" id="back-home">Done</button>
   `;
@@ -1213,6 +1215,8 @@ function renderSettings(main, p){
     if(error) console.error('save api key failed', error);
   };
   if(p){
+    document.getElementById('horizon-input').onchange = async e=>{ const v=+e.target.value; if(v>0){ p.plan.horizonYears=v; render(); await dbUpdateProfile(p); } };
+    document.getElementById('startdate-input').onchange = async e=>{ p.plan.startDate=e.target.value; render(); await dbUpdateProfile(p); };
     document.getElementById('rate-input').onchange = async e=>{ p.plan.savingsRate=+e.target.value; render(); await dbUpdateProfile(p); };
     document.getElementById('fee-rate-input').onchange = async e=>{ p.plan.defaultFeePct=+e.target.value; render(); await dbUpdateProfile(p); };
     document.querySelectorAll('#tone-select-settings [data-tone]').forEach(b=>{
