@@ -1282,14 +1282,6 @@ function renderHome(main, p){
         <span>${shortMonthYear(gp.startDate)}</span>
         <span>${shortMonthYear(gp.endDate)}</span>
       </div>
-      <div style="margin-top:10px;">
-        <div class="stat-line"><span>Your available capital so far (€${p.plan.monthlyAmount}/mo)</span><b>${fmtEUR(expectedCapital)}</b></div>
-        <div class="stat-line"><span>All capital in savings (at ${p.plan.savingsRate}%) by ${gp.endDate.getFullYear()}</span><b>${fmtEUR(projectSavingsPace(p))}</b></div>
-        <div class="stat-line"><span>Capital invested in this plan so far</span><b>${fmtEUR(principalContributed(p))}</b></div>
-        <div class="stat-line"><span>You're on pace for (projection)</span><b>${fmtEUR(projectOnPace(p))}</b></div>
-        ${totals.dividendsReceived>0?`<div class="stat-line"><span>Dividends earned</span><b style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></div>`:''}
-        ${totals.feesPaid>0?`<div class="stat-line"><span>Fees paid</span><b style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></div>`:''}
-      </div>
     </div>
 
     ${due?`<div class="banner">
@@ -1308,6 +1300,14 @@ function renderHome(main, p){
         ${['1M','3M','6M','1Y','ALL'].map(r=>`<button data-range="${r}" class="${S.range===r?'active':''}">${r}</button>`).join('')}
       </div>
       <canvas class="chart" id="chart"></canvas>
+      <div style="margin-top:14px;">
+        <div class="stat-line"><span>Your available capital so far (€${p.plan.monthlyAmount}/mo)</span><b>${fmtEUR(expectedCapital)}</b></div>
+        <div class="stat-line"><span>All capital in savings (at ${p.plan.savingsRate}%) by ${gp.endDate.getFullYear()}</span><b>${fmtEUR(projectSavingsPace(p))}</b></div>
+        <div class="stat-line"><span>Capital invested in this plan so far</span><b>${fmtEUR(principalContributed(p))}</b></div>
+        <div class="stat-line"><span>You're on pace for (projection)</span><b>${fmtEUR(projectOnPace(p))}</b></div>
+        ${totals.dividendsReceived>0?`<div class="stat-line"><span>Dividends earned</span><b style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></div>`:''}
+        ${totals.feesPaid>0?`<div class="stat-line"><span>Fees paid</span><b style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></div>`:''}
+      </div>
     </div>
 
     <div class="bucket-grid">
