@@ -630,14 +630,14 @@ function principalContributed(profile){
 
 function savingsComparisonValue(profile){
   // Monthly contributions compounding at profile.plan.savingsRate (annual %), monthly compounding.
-  // Counted per month you actually contributed — not calendar time elapsed — so the comparison
-  // shows up as soon as a purchase is logged, rather than waiting for a full month to pass.
-  // Floored at 1: the plan itself represents a first committed deposit, so this is never zero
-  // even before the first purchase is actually logged.
+  // Counted from the plan's actual calendar start date — consistent with the
+  // "Available to invest so far" figure on Home — rather than only counting
+  // months where a purchase happens to already be logged, which used to make
+  // this understate things whenever real-world registering lagged behind.
   const plan = profile.plan;
   if(!plan) return 0;
   const monthlyRate = (plan.savingsRate/100)/12;
-  const months = Math.max(contributionMonthsCount(profile), 1);
+  const months = Math.max(Math.min(monthsSince(plan.startDate)+1, plan.horizonYears*12), 1);
   let fv = 0;
   for(let i=0;i<months;i++){
     fv = (fv + plan.monthlyAmount) * (1+monthlyRate);
@@ -1261,6 +1261,9 @@ function renderHome(main, p){
         <span>${shortMonthYear(gp.endDate)}</span>
       </div>
       <div class="goal-figs" style="margin-top:10px;">
+        <span>Capital available since start (€${p.plan.monthlyAmount}/mo) <b>${fmtEUR(expectedCapital)}</b></span>
+      </div>
+      <div class="goal-figs" style="margin-top:6px;">
         <span>Invested so far <b>${fmtEUR(principalContributed(p))}</b></span>
         <span>On pace for (projection) <b class="num" style="font-size:12px;font-weight:600;color:var(--text-faint);">${fmtEUR(projectOnPace(p))}</b></span>
       </div>
@@ -1271,14 +1274,13 @@ function renderHome(main, p){
         <span>Fees paid <b class="num" style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></span>
       </div>`:''}
       <div class="goal-figs" style="margin-top:6px;">
-        <span>vs. savings (€${p.plan.monthlyAmount}/mo at ${p.plan.savingsRate}%) <b>${fmtEUR(savingsVal)}</b></span>
-        <span class="num ${ahead>=0?'delta-up':'delta-down'}" style="font-size:12px;font-weight:700;">${ahead>=0?'▲':'▼'} ${fmtEUR(Math.abs(ahead))}</span>
+        <span>Savings plan (€${p.plan.monthlyAmount}/mo at ${p.plan.savingsRate}%)</span>
+        <span>Savings by ${gp.endDate.getFullYear()} <b>${fmtEUR(projectSavingsPace(p))}</b></span>
       </div>
     </div>
 
-    ${due?`<div class="banner" style="flex-direction:column;align-items:flex-start;gap:3px;">
-      <span class="btext">Available to invest so far: ${fmtEUR(expectedCapital)}</span>
-      <span style="font-size:11.5px;color:var(--text-faint);">Remember to allocate this month's ${fmtEUR(p.plan.monthlyAmount)} investment.</span>
+    ${due?`<div class="banner">
+      <span class="btext">Remember to allocate this month's ${fmtEUR(p.plan.monthlyAmount)} investment.</span>
     </div>`:''}
     <button class="btn btn-primary" id="register-tx-btn" style="margin-bottom:14px;">+ Register transaction</button>
 
