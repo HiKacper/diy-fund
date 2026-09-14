@@ -108,6 +108,9 @@
   .timeline-marker-label{position:absolute;top:-21px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--accent-2);white-space:nowrap;}
   .timeline-dates{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);}
   .goal-figs{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);}
+  .stat-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim);}
+  .stat-line:last-child{border-bottom:none;}
+  .stat-line b{color:var(--text);font-size:14px;font-weight:750;font-family:var(--font-num);white-space:nowrap;}
   .goal-figs b{color:var(--text);font-family:var(--font-num);font-weight:650;}
 
   /* Hero value */
@@ -1260,22 +1263,13 @@ function renderHome(main, p){
         <span>${shortMonthYear(gp.startDate)}</span>
         <span>${shortMonthYear(gp.endDate)}</span>
       </div>
-      <div class="goal-figs" style="margin-top:10px;">
-        <span>Capital available since start (€${p.plan.monthlyAmount}/mo) <b>${fmtEUR(expectedCapital)}</b></span>
-      </div>
-      <div class="goal-figs" style="margin-top:6px;">
-        <span>Invested so far <b>${fmtEUR(principalContributed(p))}</b></span>
-        <span>On pace for (projection) <b class="num" style="font-size:12px;font-weight:600;color:var(--text-faint);">${fmtEUR(projectOnPace(p))}</b></span>
-      </div>
-      ${totals.dividendsReceived>0?`<div class="goal-figs" style="margin-top:6px;">
-        <span>Dividends earned <b class="num" style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></span>
-      </div>`:''}
-      ${totals.feesPaid>0?`<div class="goal-figs" style="margin-top:6px;">
-        <span>Fees paid <b class="num" style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></span>
-      </div>`:''}
-      <div class="goal-figs" style="margin-top:6px;">
-        <span>Savings plan (€${p.plan.monthlyAmount}/mo at ${p.plan.savingsRate}%)</span>
-        <span>Savings by ${gp.endDate.getFullYear()} <b>${fmtEUR(projectSavingsPace(p))}</b></span>
+      <div style="margin-top:10px;">
+        <div class="stat-line"><span>Your available capital so far (€${p.plan.monthlyAmount}/mo)</span><b>${fmtEUR(expectedCapital)}</b></div>
+        <div class="stat-line"><span>All capital in savings plan (at ${p.plan.savingsRate}%) by ${gp.endDate.getFullYear()}</span><b>${fmtEUR(projectSavingsPace(p))}</b></div>
+        <div class="stat-line"><span>Capital invested in this plan so far</span><b>${fmtEUR(principalContributed(p))}</b></div>
+        <div class="stat-line"><span>You're on pace for (projection)</span><b>${fmtEUR(projectOnPace(p))}</b></div>
+        ${totals.dividendsReceived>0?`<div class="stat-line"><span>Dividends earned</span><b style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></div>`:''}
+        ${totals.feesPaid>0?`<div class="stat-line"><span>Fees paid</span><b style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></div>`:''}
       </div>
     </div>
 
