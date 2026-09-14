@@ -632,16 +632,17 @@ function portfolioTotals(profile){
   return {costBasis, value, feesPaid, realizedGain, dividendsReceived, grossCostBasisEver, unrealizedGain, gain, gainPct};
 }
 
-// The "invested so far" figure (Home, and the vs-savings comparison) is meant to
-// be the raw cash directed at buying assets — a clean principal figure comparable
-// to what would've gone into a savings account instead. Fees are a real cost for
-// gain/loss and tax purposes (see positionsFor/portfolioTotals' fee-inclusive cost
-// basis), but they're a friction specific to investing that a savings account
-// wouldn't have, so they're deliberately excluded here.
+// The "invested so far" figure (Home, Family view, and the "Read this" summary)
+// is the total real cash directed toward this plan — order value plus any fee,
+// since a fee is genuinely money that left your pocket toward it, even though
+// it didn't buy units. (This used to exclude fees for a "fair vs. savings"
+// comparison — but the savings benchmark elsewhere no longer reads this figure
+// at all, it compounds the plan's fixed monthly amount independently, so that
+// reasoning no longer applies here.)
 function principalContributed(profile){
   return profile.transactions
     .filter(tx=>tx.type!=='sell' && tx.type!=='dividend')
-    .reduce((s,tx)=>s+tx.amountEUR, 0);
+    .reduce((s,tx)=>s+tx.amountEUR+(tx.fee||0), 0);
 }
 
 function savingsComparisonValue(profile){
