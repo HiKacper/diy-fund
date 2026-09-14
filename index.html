@@ -477,7 +477,7 @@ async function dbInsertProfile(profile){
   const { error } = await sb.from('profiles').insert({
     id:profile.id, name:profile.name, tone:profile.tone||'neutral', hidden:!!profile.hidden, plan:profile.plan
   });
-  if(error){ console.error('dbInsertProfile failed', error); flagSyncError("Couldn't save that account to the server. Check your connection — this account only exists on this device until it's saved."); }
+  if(error){ console.error('dbInsertProfile failed', error); flagSyncError(`Couldn't save that account to the server (${error.message||'unknown error'}). It only exists on this device until it's saved.`); }
   return !error;
 }
 async function dbUpdateProfile(profile){
@@ -492,7 +492,7 @@ async function dbInsertAsset(profileId, asset){
     id:asset.id, profile_id:profileId, ticker:asset.ticker, name:asset.name,
     bucket:asset.bucket, type:asset.type, reynders_pct:asset.reyndersPct||0
   });
-  if(error){ console.error('dbInsertAsset failed', error); flagSyncError("Couldn't save that asset to the server. Check your connection — it only exists on this device until it's saved."); }
+  if(error){ console.error('dbInsertAsset failed', error); flagSyncError(`Couldn't save that asset to the server (${error.message||'unknown error'}). It only exists on this device until it's saved.`); }
   return !error;
 }
 async function dbUpdateAssetPrice(assetId, price, asOf){
@@ -507,7 +507,7 @@ async function dbInsertTransaction(profileId, tx){
     units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'',
     orig_currency:tx.origCurrency||null, orig_amount:tx.origAmount||null, fx_rate:tx.fxRate||null
   });
-  if(error){ console.error('dbInsertTransaction failed', error); flagSyncError("Couldn't save that transaction to the server. Check your connection — it only exists on this device until it's saved, and won't show up on anyone else's phone yet."); }
+  if(error){ console.error('dbInsertTransaction failed', error); flagSyncError(`Couldn't save that transaction to the server (${error.message||'unknown error'}). It only exists on this device until it's saved, and won't show up on anyone else's phone yet.`); }
   return !error;
 }
 async function dbUpdateTransaction(tx){
@@ -515,12 +515,12 @@ async function dbUpdateTransaction(tx){
     date:tx.date, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
     units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||''
   }).eq('id', tx.id);
-  if(error){ console.error('dbUpdateTransaction failed', error); flagSyncError("Couldn't save that correction to the server. Check your connection and try the edit again."); }
+  if(error){ console.error('dbUpdateTransaction failed', error); flagSyncError(`Couldn't save that correction to the server (${error.message||'unknown error'}). Try the edit again.`); }
   return !error;
 }
 async function dbDeleteTransaction(txId){
   const { error } = await sb.from('transactions').delete().eq('id', txId);
-  if(error){ console.error('dbDeleteTransaction failed', error); flagSyncError("Couldn't delete that on the server. Check your connection — it may still exist there even though it's gone from this screen."); }
+  if(error){ console.error('dbDeleteTransaction failed', error); flagSyncError(`Couldn't delete that on the server (${error.message||'unknown error'}). It may still exist there even though it's gone from this screen.`); }
   return !error;
 }
 
@@ -1341,7 +1341,7 @@ function renderHome(main, p){
         Starting from ${fmtEUR(principalContributed(p))} invested so far, you're on pace for roughly ${fmtEUR(projectOnPace(p))} by ${gp.endDate.getFullYear()} at your average return to date — this part is speculation, not a promise. It simply takes your growth (or loss) pace up to now and stretches it forward as if nothing about market conditions changes, which real markets never actually do.
         If that same money had gone entirely into a savings account instead, it would be worth around ${fmtEUR(projectSavingsPace(p))} by then.
       </p>
-      <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 10px;">${buildSummaryText(p, totals, ahead)}</p>
+      <div>${buildSummaryText(p, totals, ahead)}</div>
       <p style="font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0;">
         You started saving on ${new Date(p.plan.startDate).toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'})}, and this shows your progress since then.
         Remember — it's not a game. It carries real risk. But that's how you learn to weigh it, and along the way it can be fun, and bring you closer to your goal.
@@ -1607,27 +1607,27 @@ function buildSummaryText(p, totals, ahead){
     if(!best||pct>best.pct) best={name:b.short,pct};
     if(!worst||pct<worst.pct) worst={name:b.short,pct};
   });
-  if(!best) return `No contributions logged yet — once you log the first one, this'll track how you're doing against a savings account and how each bucket is pulling its weight.`;
+  const pStyle = 'font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 10px;';
+  if(!best) return `<p style="${pStyle}margin:0;">No contributions logged yet — once you log the first one, this'll track how you're doing against a savings account and how each bucket is pulling its weight.</p>`;
 
   const principal = principalContributed(p);
   const tone = (p.tone||'neutral');
   const gapAmt = fmtEUR(Math.abs(ahead));
-  let text;
+  let para1; // capital vs. savings narrative
+  let para2 = ''; // bucket allocation narrative — kept separate for readability
 
   if(ahead>=0){
     if(tone==='direct'){
-      text = `You've put in ${fmtEUR(principal)} so far — you're beating savings by ${gapAmt} right now. That's the payoff for taking on real risk instead of parking it in a savings account.`;
+      para1 = `You've put in ${fmtEUR(principal)} so far — you're beating savings by ${gapAmt} right now. That's the payoff for taking on real risk instead of parking it in a savings account.`;
     } else if(tone==='encouraging'){
-      text = `You've saved up ${fmtEUR(principal)}. And guess what — you're doing better than a savings account, by ${gapAmt}! That's awesome.`;
+      para1 = `You've saved up ${fmtEUR(principal)}. And guess what — you're doing better than a savings account, by ${gapAmt}! That's awesome.`;
     } else {
-      text = `You've put in ${fmtEUR(principal)} so far, and right now you're ahead of a plain savings account by ${gapAmt}. Nice work — that's the real reward for taking on the extra risk.`;
+      para1 = `You've put in ${fmtEUR(principal)} so far, and right now you're ahead of a plain savings account by ${gapAmt}. Nice work — that's the real reward for taking on the extra risk.`;
     }
     if(best && worst && best.name!==worst.name){
-      if(tone==='encouraging'){
-        text += ` Your ${best.name} bucket is doing great right now (${fmtPct(best.pct)}). Your ${worst.name} bucket is a bit slower (${fmtPct(worst.pct)}) — that's totally normal.`;
-      } else {
-        text += ` ${best.name} is carrying the growth this stretch (${fmtPct(best.pct)}), while ${worst.name} is ${worst.pct<0?'pulling back':'lagging'} (${fmtPct(worst.pct)}).`;
-      }
+      para2 = tone==='encouraging'
+        ? `Your ${best.name} bucket is doing great right now (${fmtPct(best.pct)}). Your ${worst.name} bucket is a bit slower (${fmtPct(worst.pct)}) — that's totally normal.`
+        : `${best.name} is carrying the growth this stretch (${fmtPct(best.pct)}), while ${worst.name} is ${worst.pct<0?'pulling back':'lagging'} (${fmtPct(worst.pct)}).`;
     }
   } else {
     // Distinguish two very different reasons for being "behind": actual
@@ -1643,39 +1643,43 @@ function buildSummaryText(p, totals, ahead){
     const mostlyUninvested = uninvestedGap > p.plan.monthlyAmount*0.5;
 
     if(mostlyUninvested){
-      text = tone==='encouraging'
-        ? `You've saved up ${fmtEUR(principal)} so far. It looks like not all of it is invested yet — and that's fine if you're holding onto cash on purpose, like saving up for a whole share. Just remember: money only grows through compounding once it's actually invested, so it's worth putting to work when you're ready.`
-        : `You've put in ${fmtEUR(principal)} so far — it looks like not all of your available capital is actually invested yet. That's fine if there's a reason to hold cash (saving up for a whole share, for instance), but worth remembering compounding only works on money that's actually invested.`;
+      para1 = tone==='encouraging'
+        ? `You've saved up ${fmtEUR(principal)} so far, out of ${fmtEUR(expectedCapital)} available to invest since the plan started. It looks like not all of it is invested yet — and that's fine if you're holding onto cash on purpose, like saving up for a whole share. Just remember: cash sitting around also quietly loses value to inflation, and it only grows through compounding once it's actually invested — so it's worth putting to work when you're ready.`
+        : `You've put in ${fmtEUR(principal)} so far, out of ${fmtEUR(expectedCapital)} that's been available to invest since the plan started. That gap looks like uninvested capital rather than poor performance — which is fine if there's a reason to hold cash (saving up for a whole share, for instance), but worth remembering: idle cash is also quietly eroded by inflation, and it only grows through compounding once it's actually invested.`;
     } else if(tone==='direct'){
-      text = `You've put in ${fmtEUR(principal)} so far — you're behind savings by ${gapAmt} right now. That's real risk showing up as a real number. Worth knowing why, not worth panicking over.`;
+      para1 = `You've put in ${fmtEUR(principal)} so far — you're behind savings by ${gapAmt} right now. That's real risk showing up as a real number. Worth knowing why, not worth panicking over.`;
     } else if(tone==='encouraging'){
-      text = `You've saved up ${fmtEUR(principal)}. Right now you're a little behind a savings account, by ${gapAmt} — and that's totally okay. This is how you learn. It doesn't mean you did anything wrong.`;
+      para1 = `You've saved up ${fmtEUR(principal)}. Right now you're a little behind a savings account, by ${gapAmt} — and that's totally okay. This is how you learn. It doesn't mean you did anything wrong.`;
     } else {
-      text = `You've put in ${fmtEUR(principal)} so far, and right now you're behind a plain savings account by ${gapAmt}. That happens — investing carries real risk, and a rough stretch like this doesn't need to change the plan.`;
+      para1 = `You've put in ${fmtEUR(principal)} so far, and right now you're behind a plain savings account by ${gapAmt}. That happens — investing carries real risk, and a rough stretch like this doesn't need to change the plan.`;
     }
     if(best && worst && best.name!==worst.name){
-      if(tone==='encouraging'){
-        text += ` Your ${worst.name} bucket is having a rough time right now (${fmtPct(worst.pct)}). But your ${best.name} bucket is doing better (${fmtPct(best.pct)}) — nice!`;
-      } else {
-        text += ` ${worst.name} is what's dragging things down at the moment (${fmtPct(worst.pct)}), while ${best.name} is holding up better (${fmtPct(best.pct)}).`;
-      }
+      para2 = tone==='encouraging'
+        ? `Your ${worst.name} bucket is having a rough time right now (${fmtPct(worst.pct)}). But your ${best.name} bucket is doing better (${fmtPct(best.pct)}) — nice!`
+        : `${worst.name} is what's dragging things down at the moment (${fmtPct(worst.pct)}), while ${best.name} is holding up better (${fmtPct(best.pct)}).`;
     }
-    if(tone==='direct'){
-      text += ` Check the split if you want, but don't overreact to one stretch.`;
-    } else if(tone==='encouraging'){
-      text += ` Whenever you're ready, maybe take a look together with your family at your split. No rush at all.`;
-    } else {
-      text += ` Worth a calm look at whether your bucket split still feels right, rather than reacting to one stretch.`;
+    // Not shown in the uninvested-capital case — telling someone not to
+    // overreact to their bucket split doesn't fit when the real story is
+    // simply "some money hasn't been invested yet."
+    if(!mostlyUninvested){
+      if(tone==='direct'){
+        para2 += ` Check the split if you want, but don't overreact to one stretch.`;
+      } else if(tone==='encouraging'){
+        para2 += ` Whenever you're ready, maybe take a look together with your family at your split. No rush at all.`;
+      } else {
+        para2 += ` Worth a calm look at whether your bucket split still feels right, rather than reacting to one stretch.`;
+      }
     }
   }
 
   const warning = diversificationWarning(p, bTotals, totals.value);
-  if(warning) text += ` ${warning}`;
+  if(warning) para2 += (para2?' ':'') + warning;
 
   if(ahead<0 && tone==='encouraging'){
-    text += ` Remember: a savings account is just one small piece of the picture. Spreading your money across different buckets is what really protects you over time — not just one number.`;
+    para1 += ` Remember: a savings account is just one small piece of the picture. Spreading your money across different buckets is what really protects you over time — not just one number.`;
   }
-  return text;
+
+  return `<p style="${pStyle}">${para1}</p>` + (para2 ? `<p style="${pStyle}margin:0;">${para2}</p>` : '');
 }
 
 /* ---- Chart ---- */
@@ -2656,6 +2660,7 @@ function renderContributeFlow(main, p){
     const ready = purchases.filter(purchaseIsValid);
     if(!ready.length) return; // shouldn't happen since button is disabled, but guard anyway
     const newTx = [];
+    const assetInsertPromises = [];
     for(const pk of ready){
       const fxRate = pk.currency==='EUR' ? 1 : (+pk.fxRate||0);
       const eurPrice = (+pk.price)*fxRate;
@@ -2669,7 +2674,12 @@ function renderContributeFlow(main, p){
         p.assets.push(newAsset);
         p.prices[newId] = {price:eurPrice, asOf:new Date().toISOString(), currency:'EUR'};
         pk.finalAssetId = newId;
-        dbInsertAsset(p.id, newAsset).then(()=>dbUpdateAssetPrice(newId, eurPrice, new Date().toISOString()));
+        // Must actually finish before its transaction is inserted below — the
+        // transaction references this asset by ID, and the database will
+        // correctly reject it if the asset row doesn't exist yet.
+        assetInsertPromises.push(
+          dbInsertAsset(p.id, newAsset).then(()=>dbUpdateAssetPrice(newId, eurPrice, new Date().toISOString()))
+        );
       } else {
         pk.finalAssetId = pk.assetId;
         // Only let this purchase's price become the newly tracked current price if
@@ -2701,6 +2711,7 @@ function renderContributeFlow(main, p){
       d.justSaved = ready.length;
       renderContributeFlow(main, p);
     }
+    await Promise.all(assetInsertPromises);
     for(const tx of newTx) await dbInsertTransaction(p.id, tx);
   };
 }
