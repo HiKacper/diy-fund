@@ -1630,7 +1630,23 @@ function buildSummaryText(p, totals, ahead){
       }
     }
   } else {
-    if(tone==='direct'){
+    // Distinguish two very different reasons for being "behind": actual
+    // investment underperformance, versus capital that simply hasn't been put
+    // to work yet (e.g. saving up toward a whole share, or just not yet
+    // registered). Only the former is really about risk/performance — the
+    // latter is a reminder that money only compounds once it's invested, not a
+    // verdict on the investing itself, since holding cash can be a deliberate,
+    // perfectly good choice.
+    const monthsAccrued = Math.min(monthsSince(p.plan.startDate)+1, p.plan.horizonYears*12);
+    const expectedCapital = monthsAccrued * p.plan.monthlyAmount;
+    const uninvestedGap = expectedCapital - principal;
+    const mostlyUninvested = uninvestedGap > p.plan.monthlyAmount*0.5;
+
+    if(mostlyUninvested){
+      text = tone==='encouraging'
+        ? `You've saved up ${fmtEUR(principal)} so far. It looks like not all of it is invested yet — and that's fine if you're holding onto cash on purpose, like saving up for a whole share. Just remember: money only grows through compounding once it's actually invested, so it's worth putting to work when you're ready.`
+        : `You've put in ${fmtEUR(principal)} so far — it looks like not all of your available capital is actually invested yet. That's fine if there's a reason to hold cash (saving up for a whole share, for instance), but worth remembering compounding only works on money that's actually invested.`;
+    } else if(tone==='direct'){
       text = `You've put in ${fmtEUR(principal)} so far — you're behind savings by ${gapAmt} right now. That's real risk showing up as a real number. Worth knowing why, not worth panicking over.`;
     } else if(tone==='encouraging'){
       text = `You've saved up ${fmtEUR(principal)}. Right now you're a little behind a savings account, by ${gapAmt} — and that's totally okay. This is how you learn. It doesn't mean you did anything wrong.`;
