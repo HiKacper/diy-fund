@@ -2762,8 +2762,12 @@ function renderContributeFlow(main, p){
         // Only let this purchase's price become the newly tracked current price if
         // it's actually the most recent data point we have — a backdated entry
         // shouldn't overwrite a more recent live-refreshed or later-dated price.
+        // A purchase dated "today" is registered as happening right now (not
+        // midnight) — otherwise it would always lose to any refresh done
+        // earlier the same day, since a plain date defaults to midnight and
+        // would wrongly look older than a same-day refresh that came before it.
         const existing = p.prices[pk.assetId];
-        const newAsOf = new Date(pk.date).toISOString();
+        const newAsOf = pk.date===todayISO() ? new Date().toISOString() : new Date(pk.date+'T23:59:59').toISOString();
         if(!existing || newAsOf >= existing.asOf){
           p.prices[pk.assetId] = {price:eurPrice, asOf:newAsOf, currency:'EUR'};
           dbUpdateAssetPrice(pk.assetId, eurPrice, newAsOf);
