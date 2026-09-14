@@ -104,11 +104,11 @@
   /* Home timeline: start → today → target date */
   .timeline-track{position:relative;height:7px;border-radius:5px;background:var(--surface-3);margin:30px 0 10px;}
   .timeline-fill{height:100%;background:linear-gradient(90deg,var(--accent-dim),var(--accent));border-radius:5px;}
-  .timeline-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:12px;height:12px;border-radius:50%;background:var(--accent);border:2px solid var(--bg);box-shadow:0 0 0 2px var(--accent);}
+  .timeline-marker{position:absolute;top:50%;transform:translate(-50%,-50%);width:3px;height:17px;border-radius:2px;background:var(--accent);box-shadow:0 0 0 1px var(--bg);}
   .timeline-marker-label{position:absolute;top:-21px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--accent-2);white-space:nowrap;}
   .timeline-dates{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);}
   .goal-figs{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);}
-  .stat-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:9px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim);}
+  .stat-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim);}
   .stat-line:last-child{border-bottom:none;}
   .stat-line b{color:var(--text);font-size:14px;font-weight:750;font-family:var(--font-num);white-space:nowrap;}
   .goal-figs b{color:var(--text);font-family:var(--font-num);font-weight:650;}
@@ -366,6 +366,7 @@ let S = {
   myRole: null,           // 'admin' | 'family', resolved after sign-in
   authError: null,
   loading: true,          // true while the initial session check / data fetch is in flight
+  syncError: null,        // a persistent (not auto-dismissing) note when a save to the server fails
   profiles:[],
   activeProfileId:null,
   view:'home',
@@ -462,11 +463,22 @@ async function resolveRole(){
   }
 }
 
+// A failed save needs to be impossible to miss — an alert() can be dismissed by
+// reflex without ever being read, and the rest of the screen already shows the
+// change as if it worked (since the UI updates immediately, before the network
+// call finishes). This instead leaves a persistent banner visible across every
+// screen until the person deliberately dismisses it or fixes their connection
+// and retries the action themselves.
+function flagSyncError(msg){
+  S.syncError = msg;
+  render();
+}
+
 async function dbInsertProfile(profile){
   const { error } = await sb.from('profiles').insert({
     id:profile.id, name:profile.name, tone:profile.tone||'neutral', hidden:!!profile.hidden, plan:profile.plan
   });
-  if(error){ console.error('dbInsertProfile failed', error); alert("Couldn't save that account to the server — check your connection and try again."); }
+  if(error){ console.error('dbInsertProfile failed', error); flagSyncError("Couldn't save that account to the server. Check your connection — this account only exists on this device until it's saved."); }
   return !error;
 }
 async function dbUpdateProfile(profile){
@@ -481,7 +493,7 @@ async function dbInsertAsset(profileId, asset){
     id:asset.id, profile_id:profileId, ticker:asset.ticker, name:asset.name,
     bucket:asset.bucket, type:asset.type, reynders_pct:asset.reyndersPct||0
   });
-  if(error){ console.error('dbInsertAsset failed', error); alert("Couldn't save that asset to the server — check your connection and try again."); }
+  if(error){ console.error('dbInsertAsset failed', error); flagSyncError("Couldn't save that asset to the server. Check your connection — it only exists on this device until it's saved."); }
   return !error;
 }
 async function dbUpdateAssetPrice(assetId, price, asOf){
@@ -496,7 +508,7 @@ async function dbInsertTransaction(profileId, tx){
     units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'',
     orig_currency:tx.origCurrency||null, orig_amount:tx.origAmount||null, fx_rate:tx.fxRate||null
   });
-  if(error){ console.error('dbInsertTransaction failed', error); alert("Couldn't save that transaction to the server — check your connection and try again."); }
+  if(error){ console.error('dbInsertTransaction failed', error); flagSyncError("Couldn't save that transaction to the server. Check your connection — it only exists on this device until it's saved, and won't show up on anyone else's phone yet."); }
   return !error;
 }
 async function dbUpdateTransaction(tx){
@@ -504,12 +516,12 @@ async function dbUpdateTransaction(tx){
     date:tx.date, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
     units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||''
   }).eq('id', tx.id);
-  if(error){ console.error('dbUpdateTransaction failed', error); alert("Couldn't save that correction to the server — check your connection and try again."); }
+  if(error){ console.error('dbUpdateTransaction failed', error); flagSyncError("Couldn't save that correction to the server. Check your connection and try the edit again."); }
   return !error;
 }
 async function dbDeleteTransaction(txId){
   const { error } = await sb.from('transactions').delete().eq('id', txId);
-  if(error){ console.error('dbDeleteTransaction failed', error); alert("Couldn't delete that on the server — check your connection and try again."); }
+  if(error){ console.error('dbDeleteTransaction failed', error); flagSyncError("Couldn't delete that on the server. Check your connection — it may still exist there even though it's gone from this screen."); }
   return !error;
 }
 
@@ -1009,11 +1021,19 @@ function renderShell(){
     <nav class="nav-bottom" id="nav"></nav>
     <div>
       <div class="topbar" id="topbar"></div>
+      ${S.syncError?`<div class="card card-sm" style="margin:0 16px 12px;border-color:rgba(240,85,74,.4);background:var(--red-soft);">
+        <div class="row" style="align-items:flex-start;gap:10px;">
+          <span style="font-size:12.5px;color:var(--red);font-weight:600;line-height:1.5;">${escapeHTML(S.syncError)}</span>
+          <button id="dismiss-sync-error" style="background:none;border:none;color:var(--red);font-size:16px;flex-shrink:0;padding:2px;">✕</button>
+        </div>
+      </div>`:''}
       <main id="main"></main>
     </div>`;
   renderNav();
   renderTopbar();
   renderView();
+  const dismissBtn = document.getElementById('dismiss-sync-error');
+  if(dismissBtn) dismissBtn.onclick = ()=>{ S.syncError=null; render(); };
 }
 
 function renderNav(){
