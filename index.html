@@ -1235,6 +1235,12 @@ function renderHome(main, p){
   const savingsVal = savingsComparisonValue(p);
   const ahead = totals.value - savingsVal;
   const due = isContributionDueThisMonth(p);
+  // How many months' worth of capital should realistically be available by now,
+  // given when the plan actually started — not just "did you buy something this
+  // calendar month". Capped at the full horizon so it doesn't keep climbing
+  // forever once the plan period has fully elapsed.
+  const monthsAccrued = Math.min(monthsSince(p.plan.startDate)+1, p.plan.horizonYears*12);
+  const expectedCapital = monthsAccrued * p.plan.monthlyAmount;
 
   main.innerHTML = `
     <div class="card">
@@ -1264,9 +1270,16 @@ function renderHome(main, p){
       ${totals.feesPaid>0?`<div class="goal-figs" style="margin-top:6px;">
         <span>Fees paid <b class="num" style="color:var(--text-faint);">−${fmtEUR(totals.feesPaid)}</b></span>
       </div>`:''}
+      <div class="goal-figs" style="margin-top:6px;">
+        <span>vs. savings (€${p.plan.monthlyAmount}/mo at ${p.plan.savingsRate}%) <b>${fmtEUR(savingsVal)}</b></span>
+        <span class="num ${ahead>=0?'delta-up':'delta-down'}" style="font-size:12px;font-weight:700;">${ahead>=0?'▲':'▼'} ${fmtEUR(Math.abs(ahead))}</span>
+      </div>
     </div>
 
-    ${due?`<div class="banner"><span class="btext">Contribution due — ${monthName()}</span></div>`:''}
+    ${due?`<div class="banner" style="flex-direction:column;align-items:flex-start;gap:3px;">
+      <span class="btext">Available to invest so far: ${fmtEUR(expectedCapital)}</span>
+      <span style="font-size:11.5px;color:var(--text-faint);">Remember to allocate this month's ${fmtEUR(p.plan.monthlyAmount)} investment.</span>
+    </div>`:''}
     <button class="btn btn-primary" id="register-tx-btn" style="margin-bottom:14px;">+ Register transaction</button>
 
     <div class="card">
@@ -1280,15 +1293,6 @@ function renderHome(main, p){
         ${['1M','3M','6M','1Y','ALL'].map(r=>`<button data-range="${r}" class="${S.range===r?'active':''}">${r}</button>`).join('')}
       </div>
       <canvas class="chart" id="chart"></canvas>
-      <div class="savings-compare-block">
-        <div class="row">
-          <span class="label">If you'd put €${p.plan.monthlyAmount}/month in savings instead (${p.plan.savingsRate}%)</span>
-        </div>
-        <div class="row" style="margin-top:4px;">
-          <span class="num" style="font-size:16px;font-weight:700;">${fmtEUR(savingsVal)}</span>
-          <span class="val ${ahead>=0?'delta-up':'delta-down'}">${ahead>=0?'You\'re ahead by ':'You\'re behind by '}${fmtEUR(Math.abs(ahead))}</span>
-        </div>
-      </div>
     </div>
 
     <div class="bucket-grid">
