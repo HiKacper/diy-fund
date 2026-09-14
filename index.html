@@ -428,7 +428,7 @@ async function loadAllData(){
       txByProfile[t.profile_id].push({
         id:t.id, date:t.date, type:t.type||'buy', bucket:t.bucket, assetId:t.asset_id,
         amountEUR:t.amount_eur, priceAtBuy:t.price_at_buy, priceAtSell:t.price_at_sell,
-        units:t.units, fee:t.fee||0, reasoning:t.reasoning||'',
+        units:t.units, fee:t.fee||0, reasoning:t.reasoning||'', broker:t.broker||'',
         origCurrency:t.orig_currency||undefined, origAmount:t.orig_amount||undefined, fxRate:t.fx_rate||undefined
       });
     });
@@ -506,7 +506,7 @@ async function dbInsertTransaction(profileId, tx){
   const { error } = await sb.from('transactions').insert({
     id:tx.id, profile_id:profileId, asset_id:tx.assetId, date:tx.date, type:tx.type||'buy',
     bucket:tx.bucket, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
-    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'',
+    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'', broker:tx.broker||'',
     orig_currency:tx.origCurrency||null, orig_amount:tx.origAmount||null, fx_rate:tx.fxRate||null
   });
   if(error){ console.error('dbInsertTransaction failed', error); flagSyncError(`Couldn't save that transaction to the server (${error.message||'unknown error'}). It only exists on this device until it's saved, and won't show up on anyone else's phone yet.`); }
@@ -515,7 +515,7 @@ async function dbInsertTransaction(profileId, tx){
 async function dbUpdateTransaction(tx){
   const { error } = await sb.from('transactions').update({
     date:tx.date, amount_eur:tx.amountEUR, price_at_buy:tx.priceAtBuy, price_at_sell:tx.priceAtSell,
-    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||''
+    units:tx.units, fee:tx.fee||0, reasoning:tx.reasoning||'', broker:tx.broker||''
   }).eq('id', tx.id);
   if(error){ console.error('dbUpdateTransaction failed', error); flagSyncError(`Couldn't save that correction to the server (${error.message||'unknown error'}). Try the edit again.`); }
   return !error;
@@ -1229,6 +1229,22 @@ function renderSettings(main, p){
       </div>
     </div>
     <div class="card card-sm">
+      <div class="card-title">Goal & bucket split</div>
+      <div class="hint" style="margin-bottom:10px;">Adjusting the split going forward doesn't rewrite past purchases — it just changes what future contributions aim for.</div>
+      <div class="field"><label>Goal name</label><input type="text" id="goalname-input" value="${p.plan.goalName}" /></div>
+      <div class="field"><label>Monthly amount (€)</label><input type="number" id="monthlyamt-input" step="1" min="1" value="${p.plan.monthlyAmount}" /></div>
+      <div class="field">
+        <label>Bucket split (€, must sum to the monthly amount)</label>
+        <div class="field-row">
+          <div class="field"><label style="font-size:11px;">${BUCKETS[0].short}</label><input type="number" id="bucket-long-input" step="1" min="0" value="${p.plan.buckets.long}" /></div>
+          <div class="field"><label style="font-size:11px;">${BUCKETS[1].short}</label><input type="number" id="bucket-div-input" step="1" min="0" value="${p.plan.buckets.div}" /></div>
+          <div class="field"><label style="font-size:11px;">${BUCKETS[2].short}</label><input type="number" id="bucket-spec-input" step="1" min="0" value="${p.plan.buckets.spec}" /></div>
+        </div>
+        <div class="hint" id="bucket-sum-hint"></div>
+      </div>
+      <button class="btn btn-primary" id="save-goal-btn">Save changes</button>
+    </div>
+    <div class="card card-sm">
       <div class="card-title">This account's plan</div>
       <div class="hint" style="margin-bottom:10px;">Editing the plan won't rewrite past contributions.</div>
       <div class="field"><label>Investment horizon (years)</label><input type="number" id="horizon-input" step="1" min="1" value="${p.plan.horizonYears}" /></div>
@@ -1255,6 +1271,37 @@ function renderSettings(main, p){
     if(error) console.error('save api key failed', error);
   };
   if(p){
+    // Goal name / monthly amount / bucket split are interdependent (the split
+    // must sum to the monthly amount), so they're validated together and
+    // saved as one deliberate action, rather than auto-saving each keystroke
+    // like the simpler independent fields below.
+    const refreshBucketSum = ()=>{
+      const long = +document.getElementById('bucket-long-input').value||0;
+      const div = +document.getElementById('bucket-div-input').value||0;
+      const spec = +document.getElementById('bucket-spec-input').value||0;
+      const monthly = +document.getElementById('monthlyamt-input').value||0;
+      const sum = long+div+spec;
+      const hint = document.getElementById('bucket-sum-hint');
+      hint.textContent = `Sum: €${sum} of €${monthly}`;
+      hint.style.color = sum===monthly ? 'var(--text-faint)' : 'var(--red)';
+      document.getElementById('save-goal-btn').disabled = sum!==monthly || monthly<=0;
+    };
+    ['goalname-input','monthlyamt-input','bucket-long-input','bucket-div-input','bucket-spec-input'].forEach(id=>{
+      document.getElementById(id).addEventListener('input', refreshBucketSum);
+    });
+    refreshBucketSum();
+    document.getElementById('save-goal-btn').onclick = async ()=>{
+      const long = +document.getElementById('bucket-long-input').value||0;
+      const div = +document.getElementById('bucket-div-input').value||0;
+      const spec = +document.getElementById('bucket-spec-input').value||0;
+      const monthly = +document.getElementById('monthlyamt-input').value||0;
+      if(long+div+spec!==monthly || monthly<=0) return;
+      p.plan.goalName = document.getElementById('goalname-input').value;
+      p.plan.monthlyAmount = monthly;
+      p.plan.buckets = {long, div, spec};
+      render();
+      await dbUpdateProfile(p);
+    };
     document.getElementById('horizon-input').onchange = async e=>{ const v=+e.target.value; if(v>0){ p.plan.horizonYears=v; render(); await dbUpdateProfile(p); } };
     document.getElementById('startdate-input').onchange = async e=>{ p.plan.startDate=e.target.value; render(); await dbUpdateProfile(p); };
     document.getElementById('rate-input').onchange = async e=>{ p.plan.savingsRate=+e.target.value; render(); await dbUpdateProfile(p); };
@@ -1625,7 +1672,7 @@ function buildSummaryText(p, totals, ahead){
     if(!best||pct>best.pct) best={name:b.short,pct};
     if(!worst||pct<worst.pct) worst={name:b.short,pct};
   });
-  const pStyle = 'font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 10px;';
+  const pStyle = 'font-size:13.5px;line-height:1.6;color:var(--text-dim);margin:0 0 14px;';
   if(!best) return `<p style="${pStyle}margin:0;">No contributions logged yet — once you log the first one, this'll track how you're doing against a savings account and how each bucket is pulling its weight.</p>`;
 
   const principal = principalContributed(p);
@@ -2081,6 +2128,7 @@ function renderDividendFlow(main, p){
       <input type="number" id="div-amount" value="${d.amountEUR}" step="0.01" min="0" placeholder="0.00" />
       <div class="hint" id="div-eur-preview">${d.currency==='EUR'?'':`≈ ${fmtEUR(eurAmount)}`}</div>
     </div>
+    <div class="field"><label>Broker (optional)</label><input type="text" id="div-broker" value="${d.broker||''}" placeholder="e.g. DEGIRO, Trade Republic" /></div>
     <div class="field">
       <label>Note (optional)</label>
       <textarea id="div-reasoning" placeholder="e.g. Q3 dividend">${d.reasoning}</textarea>
@@ -2096,6 +2144,7 @@ function renderDividendFlow(main, p){
     if(d.currency!=='EUR') fetchDividendFx(p);
   };
   document.getElementById('div-reasoning').oninput = e=>{ d.reasoning=e.target.value; };
+  document.getElementById('div-broker').oninput = e=>{ d.broker=e.target.value; };
 
   function refreshValidity(){
     const btn = document.getElementById('div-save-btn');
@@ -2125,7 +2174,7 @@ function renderDividendFlow(main, p){
     if(!((+d.amountEUR||0)>0) || (d.currency!=='EUR' && !((+d.fxRate||0)>0))) return;
     const tx = {
       id:uid(), date:d.date, type:'dividend', bucket:pos.asset.bucket, assetId:pos.assetId,
-      amountEUR: finalEurAmount, reasoning: d.reasoning,
+      amountEUR: finalEurAmount, reasoning: d.reasoning, broker: d.broker||'',
       origCurrency: d.currency!=='EUR' ? d.currency : undefined,
       origAmount: d.currency!=='EUR' ? +d.amountEUR : undefined,
       fxRate: d.currency!=='EUR' ? +d.fxRate : undefined
@@ -2241,6 +2290,7 @@ function renderSellFlow(main, p){
     </div>
     <button class="btn btn-ghost" id="sell-all-toggle" style="margin-bottom:14px;">${d.sellAll?'✓ Selling entire position — tap to enter an amount instead':'Sell entire position instead'}</button>
     <div class="field"><label>Fee (€)</label><input type="number" id="sell-fee" value="${d.fee}" step="0.01" min="0" /></div>
+    <div class="field"><label>Broker (optional)</label><input type="text" id="sell-broker" value="${d.broker||''}" placeholder="e.g. DEGIRO, Trade Republic" /></div>
     <div class="field">
       <label>Why are you selling? (required)</label>
       <textarea id="sell-reasoning" placeholder="What's your reasoning?">${d.reasoning}</textarea>
@@ -2275,13 +2325,14 @@ function renderSellFlow(main, p){
   document.getElementById('sell-price').oninput = e=>{ d.priceAtSell=+e.target.value; updatePreview(); };
   document.getElementById('sell-fee').oninput = e=>{ d.fee=Math.max(+e.target.value,0); updatePreview(); };
   document.getElementById('sell-reasoning').oninput = e=>{ d.reasoning=e.target.value; updatePreview(); };
+  document.getElementById('sell-broker').oninput = e=>{ d.broker=e.target.value; };
 
   document.getElementById('sell-save-btn').onclick = async ()=>{
     const finalPreview = sellPreview(pos, d);
     if(!(finalPreview.unitsToSell>0 && d.reasoning && d.priceAtSell>0)) return;
     const tx = {
       id:uid(), date:d.date, type:'sell', bucket:pos.asset.bucket, assetId:pos.assetId,
-      units:finalPreview.unitsToSell, priceAtSell:d.priceAtSell, fee:d.fee||0, reasoning:d.reasoning
+      units:finalPreview.unitsToSell, priceAtSell:d.priceAtSell, fee:d.fee||0, reasoning:d.reasoning, broker:d.broker||''
     };
     p.transactions.push(tx);
     S.sellDraft=null; S.view='home'; render();
@@ -2303,7 +2354,8 @@ function startEditTransaction(p, txId){
     units: tx.units,
     priceAtSell: tx.priceAtSell,
     fee: tx.fee||0,
-    reasoning: tx.reasoning||''
+    reasoning: tx.reasoning||'',
+    broker: tx.broker||''
   };
   S.view='edit-tx';
   render();
@@ -2338,6 +2390,7 @@ function renderEditTransaction(main, p){
       </div>
     `}
     ${d.isDividend?'':`<div class="field"><label>Fee (€)</label><input type="number" id="edit-fee" value="${d.fee}" step="0.01" min="0" /></div>`}
+    <div class="field"><label>Broker (optional)</label><input type="text" id="edit-broker" value="${d.broker||''}" placeholder="e.g. DEGIRO, Trade Republic" /></div>
     <div class="field"><label>${d.isDividend?'Note':'Reasoning'}</label><textarea id="edit-reasoning">${d.reasoning}</textarea></div>
 
     ${d.isDividend?'':`<div class="card card-sm" style="margin-bottom:16px;">
@@ -2372,6 +2425,7 @@ function renderEditTransaction(main, p){
 
   document.getElementById('edit-date').onchange = e=>{ d.date=e.target.value; };
   document.getElementById('edit-reasoning').oninput = e=>{ d.reasoning=e.target.value; };
+  document.getElementById('edit-broker').oninput = e=>{ d.broker=e.target.value; };
   const feeInput = document.getElementById('edit-fee');
   if(feeInput) feeInput.oninput = e=>{ d.fee=Math.max(+e.target.value,0); };
   if(d.isDividend){
@@ -2386,11 +2440,11 @@ function renderEditTransaction(main, p){
 
   document.getElementById('save-edit-btn').onclick = async ()=>{
     if(d.isDividend){
-      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.reasoning=d.reasoning;
+      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.reasoning=d.reasoning; tx.broker=d.broker||'';
     } else if(d.isSell){
-      tx.date=d.date; tx.units=+d.units; tx.priceAtSell=+d.priceAtSell; tx.fee=+d.fee||0; tx.reasoning=d.reasoning;
+      tx.date=d.date; tx.units=+d.units; tx.priceAtSell=+d.priceAtSell; tx.fee=+d.fee||0; tx.reasoning=d.reasoning; tx.broker=d.broker||'';
     } else {
-      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.priceAtBuy=+d.priceAtBuy; tx.fee=+d.fee||0; tx.reasoning=d.reasoning;
+      tx.date=d.date; tx.amountEUR=+d.amountEUR; tx.priceAtBuy=+d.priceAtBuy; tx.fee=+d.fee||0; tx.reasoning=d.reasoning; tx.broker=d.broker||'';
     }
     S.editTxDraft=null; S.view='positions'; render();
     await dbUpdateTransaction(tx);
@@ -2459,7 +2513,7 @@ function assetEvolutionHTML(p, assetId, editable){
           ${editable?`<button data-edit-tx="${tx.id}" class="btn-ghost" style="width:auto;padding:4px 8px;font-size:11.5px;color:var(--accent-2);">Edit</button>`:''}
         </div>
       </div>
-      ${isDividend?'':`<div class="evo-running">${ev.runningUnits.toFixed(4)} units held · cost basis ${fmtEUR(ev.runningCostBasis)}${tx.origCurrency?` · paid ${tx.origAmount.toFixed(2)} ${tx.origCurrency} @ rate ${tx.fxRate.toFixed(4)}`:''}</div>`}
+      ${isDividend?(tx.broker?`<div class="evo-running">via ${escapeHTML(tx.broker)}</div>`:''):`<div class="evo-running">${ev.runningUnits.toFixed(4)} units held · cost basis ${fmtEUR(ev.runningCostBasis)}${tx.origCurrency?` · paid ${tx.origAmount.toFixed(2)} ${tx.origCurrency} @ rate ${tx.fxRate.toFixed(4)}`:''}${tx.broker?` · via ${escapeHTML(tx.broker)}`:''}</div>`}
       ${tx.reasoning?`<div class="evo-reason">${escapeHTML(tx.reasoning)}</div>`:''}
     </div>`;
   }).join('');
@@ -2607,6 +2661,10 @@ function renderContributeFlow(main, p){
           <div class="hint" id="total-out-${pk.pid}"></div>
         </div>
         <div class="field">
+          <label>Broker (optional)</label>
+          <input type="text" data-broker="${pk.pid}" value="${pk.broker||''}" placeholder="e.g. DEGIRO, Trade Republic" />
+        </div>
+        <div class="field">
           <label>Why this pick? (required)</label>
           <textarea data-reasoning="${pk.pid}" placeholder="What's your reasoning?">${pk.reasoning}</textarea>
         </div>
@@ -2656,6 +2714,7 @@ function renderContributeFlow(main, p){
         if(pk.currency!=='EUR') autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
       };
       list.querySelector(`[data-reasoning="${pk.pid}"]`).oninput = e=>{ pk.reasoning=e.target.value; updateFooter(); };
+      list.querySelector(`[data-broker="${pk.pid}"]`).oninput = e=>{ pk.broker=e.target.value; };
       updateTotalOut(pk);
       if(pk.currency!=='EUR' && !pk.fxRate && !pk.fxFailed) autoFetchFxRate(pk, updateTotalOut, updateFooter, renderList);
       const removeBtn = list.querySelector(`[data-remove="${pk.pid}"]`);
@@ -2712,7 +2771,7 @@ function renderContributeFlow(main, p){
       }
       const tx = {
         id:uid(), date:pk.date||todayISO(), bucket:pk.bucket, assetId:pk.finalAssetId,
-        amountEUR: eurAmount, priceAtBuy: eurPrice, reasoning: pk.reasoning, fee: eurFee,
+        amountEUR: eurAmount, priceAtBuy: eurPrice, reasoning: pk.reasoning, fee: eurFee, broker: pk.broker||'',
         origCurrency: pk.currency!=='EUR' ? pk.currency : undefined,
         origAmount: pk.currency!=='EUR' ? +pk.amountEUR : undefined,
         origPrice: pk.currency!=='EUR' ? +pk.price : undefined,
@@ -3017,6 +3076,7 @@ function generateReportRows(scope, months, startIdx, endIdx){
           'Units held after': isDividend?'':+ev.runningUnits.toFixed(6),
           'Cost basis after (EUR)': isDividend?'':+ev.runningCostBasis.toFixed(2),
           'Realized gain/loss (EUR)': isSell ? +ev.realizedGain.toFixed(2) : '',
+          'Broker': tx.broker||'',
           'Reasoning': tx.reasoning||''
         });
       });
