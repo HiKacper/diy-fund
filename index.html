@@ -108,8 +108,7 @@
   .timeline-marker-label{position:absolute;top:-21px;left:50%;transform:translateX(-50%);font-size:10.5px;font-weight:700;color:var(--accent-2);white-space:nowrap;}
   .timeline-dates{display:flex;justify-content:space-between;font-size:11px;color:var(--text-faint);}
   .goal-figs{display:flex;justify-content:space-between;font-size:12.5px;color:var(--text-dim);}
-  .stat-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;border-bottom:1px solid var(--border-soft);font-size:12.5px;color:var(--text-dim);}
-  .stat-line:last-child{border-bottom:none;}
+  .stat-line{display:flex;justify-content:space-between;align-items:baseline;gap:10px;padding:5px 0;font-size:12.5px;color:var(--text-dim);}
   .stat-line b{color:var(--text);font-size:14px;font-weight:750;font-family:var(--font-num);white-space:nowrap;}
   .goal-figs b{color:var(--text);font-family:var(--font-num);font-weight:650;}
 
@@ -1285,7 +1284,7 @@ function renderHome(main, p){
       </div>
       <div style="margin-top:10px;">
         <div class="stat-line"><span>Your available capital so far (€${p.plan.monthlyAmount}/mo)</span><b>${fmtEUR(expectedCapital)}</b></div>
-        <div class="stat-line"><span>All capital in savings plan (at ${p.plan.savingsRate}%) by ${gp.endDate.getFullYear()}</span><b>${fmtEUR(projectSavingsPace(p))}</b></div>
+        <div class="stat-line"><span>All capital in savings (at ${p.plan.savingsRate}%) by ${gp.endDate.getFullYear()}</span><b>${fmtEUR(projectSavingsPace(p))}</b></div>
         <div class="stat-line"><span>Capital invested in this plan so far</span><b>${fmtEUR(principalContributed(p))}</b></div>
         <div class="stat-line"><span>You're on pace for (projection)</span><b>${fmtEUR(projectOnPace(p))}</b></div>
         ${totals.dividendsReceived>0?`<div class="stat-line"><span>Dividends earned</span><b style="color:var(--green);">+${fmtEUR(totals.dividendsReceived)}</b></div>`:''}
@@ -1294,7 +1293,7 @@ function renderHome(main, p){
     </div>
 
     ${due?`<div class="banner">
-      <span class="btext">Remember to allocate this month's ${fmtEUR(p.plan.monthlyAmount)} investment.</span>
+      <span class="btext">Remember to allocate ${monthName()}'s ${fmtEUR(p.plan.monthlyAmount)}</span>
     </div>`:''}
     <button class="btn btn-primary" id="register-tx-btn" style="margin-bottom:14px;">+ Register transaction</button>
 
