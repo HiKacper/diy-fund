@@ -501,6 +501,13 @@ async function dbUpdateAssetPrice(assetId, price, asOf){
   if(error) console.error('dbUpdateAssetPrice failed', error);
   return !error;
 }
+async function dbUpdateAsset(asset){
+  const { error } = await sb.from('assets').update({
+    ticker:asset.ticker, name:asset.name, type:asset.type, reynders_pct:asset.reyndersPct||0
+  }).eq('id', asset.id);
+  if(error){ console.error('dbUpdateAsset failed', error); flagSyncError(`Couldn't save that asset's details to the server (${error.message||'unknown error'}). Try again.`); }
+  return !error;
+}
 async function dbInsertTransaction(profileId, tx){
   const { error } = await sb.from('transactions').insert({
     id:tx.id, profile_id:profileId, asset_id:tx.assetId, date:tx.date, type:tx.type||'buy',
@@ -1111,7 +1118,7 @@ function renderTopbar(){
 function renderView(){
   const main = document.getElementById('main');
   const p = activeProfile();
-  const profileRequired = ['contribute','sell','dividend','register-choice','edit-tx'];
+  const profileRequired = ['contribute','sell','dividend','register-choice','edit-tx','edit-asset'];
   if(!p && profileRequired.includes(S.view)){ S.view='home'; }
   if(S.view==='switch') return renderSwitchProfile(main);
   if(S.view==='settings') return renderSettings(main, p);
@@ -1120,6 +1127,7 @@ function renderView(){
   if(S.view==='dividend') return renderDividendFlow(main, p);
   if(S.view==='register-choice') return renderRegisterChoice(main, p);
   if(S.view==='edit-tx') return renderEditTransaction(main, p);
+  if(S.view==='edit-asset') return renderEditAsset(main, p);
   if(S.view==='home') return p ? renderHome(main, p) : renderFamilyHome(main);
   if(S.view==='positions') return p ? renderPositions(main, p) : renderFamilyPositions(main);
   if(S.view==='export') return renderExport(main);
@@ -2341,6 +2349,64 @@ function renderSellFlow(main, p){
 }
 
 /* ---- Edit / correct a transaction ---- */
+/* ---- Edit an asset's own details (ticker, name, type) ----
+   Separate from editing a transaction — this fixes the asset record itself,
+   which every transaction referencing it, and any future price refresh, reads
+   from. Getting the ticker right matters specifically because price refresh
+   looks up that exact ticker, not the free-text name. */
+function startEditAsset(p, assetId){
+  const asset = p.assets.find(a=>a.id===assetId);
+  if(!asset) return;
+  S.editAssetDraft = { assetId, ticker:asset.ticker, name:asset.name, type:asset.type, reyndersPct:asset.reyndersPct||0 };
+  S.view = 'edit-asset';
+  render();
+}
+
+function renderEditAsset(main, p){
+  const d = S.editAssetDraft;
+  const asset = p.assets.find(a=>a.id===d.assetId);
+  if(!asset){ S.view='positions'; render(); return; }
+  main.innerHTML = `
+    <div class="back-row"><button id="cancel-edit-asset">✕ Cancel</button></div>
+    <div class="page-title" style="margin-bottom:4px;">Correct this asset</div>
+    <p class="explainer" style="margin:0 0 16px;">Fixes the asset itself — every purchase, sale, and dividend already logged for it stays exactly as it was; only the ticker, name, and type change.</p>
+
+    <div class="field">
+      <label>Ticker (used for live price lookups — get this right)</label>
+      <input type="text" id="ea-ticker" value="${escapeHTML(d.ticker)}" placeholder="e.g. VWCE, AAPL, BTC" />
+    </div>
+    <div class="field">
+      <label>Display name</label>
+      <input type="text" id="ea-name" value="${escapeHTML(d.name)}" />
+    </div>
+    <div class="field">
+      <label>Type</label>
+      <select id="ea-type">${ASSET_TYPES.map(t=>`<option ${d.type===t?'selected':''}>${t}</option>`).join('')}</select>
+    </div>
+    <div class="field ${d.type==='Bond'?'':'hidden'}">
+      <label>Interest-bearing portion, for the Reynders tax (%)</label>
+      <input type="number" id="ea-reynders" value="${d.reyndersPct}" min="0" max="100" step="1" />
+    </div>
+
+    <button class="btn btn-primary" id="save-edit-asset" ${d.ticker.trim() && d.name.trim() ? '':'disabled'}>Save correction</button>
+  `;
+  document.getElementById('cancel-edit-asset').onclick = ()=>{ S.editAssetDraft=null; S.view='positions'; render(); };
+  document.getElementById('ea-ticker').oninput = e=>{ d.ticker=e.target.value; document.getElementById('save-edit-asset').disabled = !(d.ticker.trim() && d.name.trim()); };
+  document.getElementById('ea-name').oninput = e=>{ d.name=e.target.value; document.getElementById('save-edit-asset').disabled = !(d.ticker.trim() && d.name.trim()); };
+  document.getElementById('ea-type').onchange = e=>{ d.type=e.target.value; render(); };
+  const reyndersInput = document.getElementById('ea-reynders');
+  if(reyndersInput) reyndersInput.oninput = e=>{ d.reyndersPct=Math.max(Math.min(+e.target.value,100),0); };
+  document.getElementById('save-edit-asset').onclick = async ()=>{
+    if(!d.ticker.trim() || !d.name.trim()) return;
+    asset.ticker = d.ticker.trim();
+    asset.name = d.name.trim();
+    asset.type = d.type;
+    asset.reyndersPct = d.type==='Bond' ? (d.reyndersPct||0) : 0;
+    S.editAssetDraft = null; S.view='positions'; render();
+    await dbUpdateAsset(asset);
+  };
+}
+
 function startEditTransaction(p, txId){
   const tx = p.transactions.find(t=>t.id===txId);
   if(!tx) return;
@@ -2825,7 +2891,7 @@ function renderPositions(main, p){
             <div class="pos-left">
               <div class="pos-badge">${pos.asset.ticker.slice(0,4)}</div>
               <div>
-                <div class="pos-name">${pos.asset.name}</div>
+                <div class="pos-name">${pos.asset.name}${S.historyEditMode?` <button data-edit-asset="${pos.assetId}" class="btn-ghost" style="width:auto;padding:2px 6px;font-size:10.5px;color:var(--accent-2);display:inline;">Edit</button>`:''}</div>
                 <div class="pos-sub">${pos.asset.type} · cost ${fmtEUR(pos.costBasis)}${pos.feesPaid>0?` · fees ${fmtEUR(pos.feesPaid)}`:''}${pos.dividendsReceived>0?` · dividends ${fmtEUR(pos.dividendsReceived)}`:''}${pos.units<=0.0000001?' · closed':''}</div>
               </div>
             </div>
@@ -2854,11 +2920,14 @@ function renderPositions(main, p){
   });
   main.querySelectorAll('[data-toggle]').forEach(row=>{
     row.onclick = (e)=>{
-      if(e.target.closest('[data-buy],[data-sell],[data-edit-tx]')) return; // let action buttons handle their own click
+      if(e.target.closest('[data-buy],[data-sell],[data-edit-tx],[data-edit-asset]')) return; // let action buttons handle their own click
       const id = row.dataset.toggle;
       S.expandedAssets[id] = !S.expandedAssets[id];
       render();
     };
+  });
+  main.querySelectorAll('[data-edit-asset]').forEach(btn=>{
+    btn.onclick = (e)=>{ e.stopPropagation(); startEditAsset(p, btn.dataset.editAsset); };
   });
   main.querySelectorAll('[data-sell]').forEach(btn=>{
     btn.onclick = (e)=>{ e.stopPropagation(); startSell(p, btn.dataset.sell); };
