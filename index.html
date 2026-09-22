@@ -1276,7 +1276,7 @@ function renderSettings(main, p){
   document.getElementById('api-key-input').onchange = async e=>{
     S.anthropicApiKey=e.target.value.trim();
     const { error } = await sb.from('app_settings').update({ anthropic_api_key:S.anthropicApiKey }).eq('id',1);
-    if(error) console.error('save api key failed', error);
+    if(error){ console.error('save api key failed', error); flagSyncError(`Couldn't save the API key to the server (${error.message||'unknown error'}). It may not actually be stored — try again.`); }
   };
   if(p){
     // Goal name / monthly amount / bucket split are interdependent (the split
@@ -2280,7 +2280,7 @@ function renderSellFlow(main, p){
     <div class="card card-sm" style="margin-bottom:14px;">
       <div class="taxline"><span>Units held</span><span class="num">${pos.units.toFixed(4)}</span></div>
       <div class="taxline"><span>Cost basis</span><span class="num">${fmtEUR(pos.costBasis)}</span></div>
-      <div class="taxline"><span>Current value</span><span class="num">${fmtEUR(pos.value)}</span></div>
+      <div class="taxline"><span>Value at your entered price</span><span class="num" id="live-value">${fmtEUR(pos.units*(d.priceAtSell||0))}</span></div>
     </div>
     <div class="field">
       <label>Date of sale</label>
@@ -2289,7 +2289,7 @@ function renderSellFlow(main, p){
     <div class="field-row">
       <div class="field">
         <label>Amount to sell (€)</label>
-        <input type="number" id="sell-amount" value="${d.amountEUR}" step="0.01" min="0" placeholder="0.00" ${d.sellAll?'disabled':''} />
+        <input type="number" id="sell-amount" value="${d.sellAll ? (pos.units*(d.priceAtSell||0)).toFixed(2) : d.amountEUR}" step="0.01" min="0" placeholder="0.00" ${d.sellAll?'disabled':''} />
       </div>
       <div class="field">
         <label>Price per unit (€)</label>
@@ -2325,6 +2325,8 @@ function renderSellFlow(main, p){
     gainEl.innerHTML = `<b>${fmtEUR(prev.realizedGain)}</b>`;
     gainEl.className = `num ${prev.realizedGain>=0?'delta-up':'delta-down'}`;
     document.getElementById('sell-save-btn').disabled = !(prev.unitsToSell>0 && d.reasoning && d.priceAtSell>0);
+    document.getElementById('live-value').textContent = fmtEUR(pos.units*(d.priceAtSell||0));
+    if(d.sellAll) document.getElementById('sell-amount').value = (pos.units*(d.priceAtSell||0)).toFixed(2);
     return prev;
   }
 
@@ -2357,7 +2359,7 @@ function renderSellFlow(main, p){
 function startEditAsset(p, assetId){
   const asset = p.assets.find(a=>a.id===assetId);
   if(!asset) return;
-  S.editAssetDraft = { assetId, ticker:asset.ticker, name:asset.name, type:asset.type, reyndersPct:asset.reyndersPct||0 };
+  S.editAssetDraft = { assetId, ticker:asset.ticker, name:asset.name, type:asset.type, reyndersPct:asset.reyndersPct||0, currentPrice: currentPrice(p, assetId) };
   S.view = 'edit-asset';
   render();
 }
@@ -2369,7 +2371,7 @@ function renderEditAsset(main, p){
   main.innerHTML = `
     <div class="back-row"><button id="cancel-edit-asset">✕ Cancel</button></div>
     <div class="page-title" style="margin-bottom:4px;">Correct this asset</div>
-    <p class="explainer" style="margin:0 0 16px;">Fixes the asset itself — every purchase, sale, and dividend already logged for it stays exactly as it was; only the ticker, name, and type change.</p>
+    <p class="explainer" style="margin:0 0 16px;">Fixes the asset itself — every purchase, sale, and dividend already logged for it stays exactly as it was; only the ticker, name, type, and tracked price change.</p>
 
     <div class="field">
       <label>Ticker (used for live price lookups — get this right)</label>
@@ -2387,6 +2389,11 @@ function renderEditAsset(main, p){
       <label>Interest-bearing portion, for the Reynders tax (%)</label>
       <input type="number" id="ea-reynders" value="${d.reyndersPct}" min="0" max="100" step="1" />
     </div>
+    <div class="field">
+      <label>Current price (€) — used to value your holding right now</label>
+      <input type="number" id="ea-price" value="${d.currentPrice}" step="0.01" min="0" />
+      <div class="hint">Overrides whatever "refresh" last fetched. Use this if a live lookup pulled a wrong price — check your broker's actual quote and enter it here directly.</div>
+    </div>
 
     <button class="btn btn-primary" id="save-edit-asset" ${d.ticker.trim() && d.name.trim() ? '':'disabled'}>Save correction</button>
   `;
@@ -2394,6 +2401,7 @@ function renderEditAsset(main, p){
   document.getElementById('ea-ticker').oninput = e=>{ d.ticker=e.target.value; document.getElementById('save-edit-asset').disabled = !(d.ticker.trim() && d.name.trim()); };
   document.getElementById('ea-name').oninput = e=>{ d.name=e.target.value; document.getElementById('save-edit-asset').disabled = !(d.ticker.trim() && d.name.trim()); };
   document.getElementById('ea-type').onchange = e=>{ d.type=e.target.value; render(); };
+  document.getElementById('ea-price').oninput = e=>{ d.currentPrice=Math.max(+e.target.value,0); };
   const reyndersInput = document.getElementById('ea-reynders');
   if(reyndersInput) reyndersInput.oninput = e=>{ d.reyndersPct=Math.max(Math.min(+e.target.value,100),0); };
   document.getElementById('save-edit-asset').onclick = async ()=>{
@@ -2402,8 +2410,12 @@ function renderEditAsset(main, p){
     asset.name = d.name.trim();
     asset.type = d.type;
     asset.reyndersPct = d.type==='Bond' ? (d.reyndersPct||0) : 0;
+    const priceChanged = d.currentPrice !== currentPrice(p, d.assetId);
+    const nowIso = new Date().toISOString();
+    if(priceChanged) p.prices[d.assetId] = {price:d.currentPrice, asOf:nowIso, currency:'EUR'};
     S.editAssetDraft = null; S.view='positions'; render();
     await dbUpdateAsset(asset);
+    if(priceChanged) await dbUpdateAssetPrice(d.assetId, d.currentPrice, nowIso);
   };
 }
 
