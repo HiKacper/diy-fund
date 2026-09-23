@@ -410,7 +410,7 @@ async function loadAllData(){
       if(!assetsByProfile[a.profile_id]) assetsByProfile[a.profile_id]=[];
       assetsByProfile[a.profile_id].push({
         id:a.id, ticker:a.ticker, name:a.name, bucket:a.bucket, type:a.type,
-        reyndersPct:a.reynders_pct||0
+        reyndersPct:a.reynders_pct||0, isin:a.isin||''
       });
       // current price lives keyed by asset id, same shape the app already uses
     });
@@ -491,7 +491,7 @@ async function dbUpdateProfile(profile){
 async function dbInsertAsset(profileId, asset){
   const { error } = await sb.from('assets').insert({
     id:asset.id, profile_id:profileId, ticker:asset.ticker, name:asset.name,
-    bucket:asset.bucket, type:asset.type, reynders_pct:asset.reyndersPct||0
+    bucket:asset.bucket, type:asset.type, reynders_pct:asset.reyndersPct||0, isin:asset.isin||''
   });
   if(error){ console.error('dbInsertAsset failed', error); flagSyncError(`Couldn't save that asset to the server (${error.message||'unknown error'}). It only exists on this device until it's saved.`); }
   return !error;
@@ -503,7 +503,7 @@ async function dbUpdateAssetPrice(assetId, price, asOf){
 }
 async function dbUpdateAsset(asset){
   const { error } = await sb.from('assets').update({
-    ticker:asset.ticker, name:asset.name, type:asset.type, reynders_pct:asset.reyndersPct||0
+    ticker:asset.ticker, name:asset.name, type:asset.type, reynders_pct:asset.reyndersPct||0, isin:asset.isin||''
   }).eq('id', asset.id);
   if(error){ console.error('dbUpdateAsset failed', error); flagSyncError(`Couldn't save that asset's details to the server (${error.message||'unknown error'}). Try again.`); }
   return !error;
@@ -1982,7 +1982,7 @@ async function refreshPrices(p){
     if(!hasApiKey()){
       S.priceRefreshNote = 'Add an Anthropic API key in Settings to enable live lookups for non-crypto assets.';
     } else {
-      const tickers = otherAssets.map(a=>`${a.id}:${a.ticker}`).join(', ');
+      const tickers = otherAssets.map(a=>a.isin ? `${a.id}:${a.ticker} (ISIN ${a.isin})` : `${a.id}:${a.ticker}`).join(', ');
       try{
         const resp = await fetch('https://api.anthropic.com/v1/messages', {
           method:'POST',
@@ -1991,7 +1991,7 @@ async function refreshPrices(p){
             model: AI_MODEL,
             max_tokens: 1000,
             messages:[{role:'user', content:
-              `Use web_search to look up today's current market prices in EUR for these assets (format id:ticker): ${tickers}. ` +
+              `Use web_search to look up today's current market prices in EUR for these assets (format id:ticker, with an ISIN in parentheses where given — treat the ISIN as the authoritative identifier for that exact listing, since the same ticker can exist on multiple exchanges): ${tickers}. ` +
               `Do not answer from memory or approximate — only use figures you actually find via web_search, since prices change daily and a memorized value could be badly out of date. ` +
               `If you can't find a reliable current price for an item, omit it entirely rather than guessing. ` +
               `Respond with ONLY a JSON array, no markdown, no preamble, like: ` +
@@ -2359,7 +2359,7 @@ function renderSellFlow(main, p){
 function startEditAsset(p, assetId){
   const asset = p.assets.find(a=>a.id===assetId);
   if(!asset) return;
-  S.editAssetDraft = { assetId, ticker:asset.ticker, name:asset.name, type:asset.type, reyndersPct:asset.reyndersPct||0, currentPrice: currentPrice(p, assetId) };
+  S.editAssetDraft = { assetId, ticker:asset.ticker, name:asset.name, type:asset.type, reyndersPct:asset.reyndersPct||0, isin:asset.isin||'', currentPrice: currentPrice(p, assetId) };
   S.view = 'edit-asset';
   render();
 }
@@ -2371,7 +2371,7 @@ function renderEditAsset(main, p){
   main.innerHTML = `
     <div class="back-row"><button id="cancel-edit-asset">✕ Cancel</button></div>
     <div class="page-title" style="margin-bottom:4px;">Correct this asset</div>
-    <p class="explainer" style="margin:0 0 16px;">Fixes the asset itself — every purchase, sale, and dividend already logged for it stays exactly as it was; only the ticker, name, type, and tracked price change.</p>
+    <p class="explainer" style="margin:0 0 16px;">Fixes the asset itself — every purchase, sale, and dividend already logged for it stays exactly as it was; only the ticker, name, type, ISIN, and tracked price change.</p>
 
     <div class="field">
       <label>Ticker (used for live price lookups — get this right)</label>
@@ -2389,6 +2389,11 @@ function renderEditAsset(main, p){
       <label>Interest-bearing portion, for the Reynders tax (%)</label>
       <input type="number" id="ea-reynders" value="${d.reyndersPct}" min="0" max="100" step="1" />
     </div>
+    <div class="field ${d.type==='Crypto'?'hidden':''}">
+      <label>ISIN (optional)</label>
+      <input type="text" id="ea-isin" value="${escapeHTML(d.isin)}" placeholder="e.g. IE00BFMXXD54" maxlength="12" style="text-transform:uppercase;" />
+      <div class="hint">Helps live price lookups find the exact right listing, especially for tickers that exist on multiple exchanges.</div>
+    </div>
     <div class="field">
       <label>Current price (€) — used to value your holding right now</label>
       <input type="number" id="ea-price" value="${d.currentPrice}" step="0.01" min="0" />
@@ -2404,12 +2409,15 @@ function renderEditAsset(main, p){
   document.getElementById('ea-price').oninput = e=>{ d.currentPrice=Math.max(+e.target.value,0); };
   const reyndersInput = document.getElementById('ea-reynders');
   if(reyndersInput) reyndersInput.oninput = e=>{ d.reyndersPct=Math.max(Math.min(+e.target.value,100),0); };
+  const isinInput = document.getElementById('ea-isin');
+  if(isinInput) isinInput.oninput = e=>{ d.isin=e.target.value.toUpperCase(); };
   document.getElementById('save-edit-asset').onclick = async ()=>{
     if(!d.ticker.trim() || !d.name.trim()) return;
     asset.ticker = d.ticker.trim();
     asset.name = d.name.trim();
     asset.type = d.type;
     asset.reyndersPct = d.type==='Bond' ? (d.reyndersPct||0) : 0;
+    asset.isin = d.type==='Crypto' ? '' : (d.isin||'');
     const priceChanged = d.currentPrice !== currentPrice(p, d.assetId);
     const nowIso = new Date().toISOString();
     if(priceChanged) p.prices[d.assetId] = {price:d.currentPrice, asOf:nowIso, currency:'EUR'};
@@ -2697,8 +2705,8 @@ function renderContributeFlow(main, p){
           <label>Asset</label>
           <select data-asset="${pk.pid}">
             <option value="">— choose —</option>
-            ${existingAssets.map(a=>`<option value="${a.id}" ${pk.assetId===a.id?'selected':''}>${a.ticker!==a.name?a.ticker+' — '+a.name:a.name}</option>`).join('')}
             <option value="__new__" ${pk.assetId==='__new__'?'selected':''}>+ Add new asset</option>
+            ${existingAssets.map(a=>`<option value="${a.id}" ${pk.assetId===a.id?'selected':''}>${a.ticker}</option>`).join('')}
           </select>
         </div>
         <div data-newfields="${pk.pid}" class="${pk.assetId==='__new__'?'':'hidden'}">
@@ -2711,7 +2719,12 @@ function renderContributeFlow(main, p){
               <select data-na-type="${pk.pid}">${ASSET_TYPES.map(t=>`<option ${pk.newAsset?.type===t?'selected':''}>${t}</option>`).join('')}</select>
             </div>
           </div>
-          ${pk.newAsset?.type==='Crypto'?'<div class="hint" style="margin:-4px 0 12px;">Use the standard symbol (BTC, ETH, etc.) so live pricing can find it automatically.</div>':''}
+          ${pk.newAsset?.type==='Crypto'?'<div class="hint" style="margin:-4px 0 12px;">Use the standard symbol (BTC, ETH, etc.) so live pricing can find it automatically.</div>':`
+          <div class="field">
+            <label>ISIN (optional)</label>
+            <input type="text" data-na-isin="${pk.pid}" value="${pk.newAsset?.isin||''}" placeholder="e.g. IE00BFMXXD54" maxlength="12" style="text-transform:uppercase;" />
+            <div class="hint">Helps live price lookups find the exact right listing, especially for tickers that exist on multiple exchanges.</div>
+          </div>`}
         </div>
         <div class="field-row">
           <div class="field">
@@ -2762,7 +2775,7 @@ function renderContributeFlow(main, p){
       sel.onchange = e=>{
         pk.assetId = e.target.value;
         if(pk.assetId==='__new__'){
-          if(!pk.newAsset) pk.newAsset={type:'ETF',name:''};
+          if(!pk.newAsset) pk.newAsset={type:'ETF',name:'',isin:''};
         } else if(pk.assetId) {
           const known = currentPrice(p, pk.assetId);
           if(known) pk.price = known; // prefill with last known price, still editable
@@ -2772,6 +2785,8 @@ function renderContributeFlow(main, p){
       if(pk.assetId==='__new__'){
         list.querySelector(`[data-na-type="${pk.pid}"]`).onchange = e=>{ pk.newAsset.type=e.target.value; renderList(); };
         list.querySelector(`[data-na-name="${pk.pid}"]`).oninput = e=>{ pk.newAsset.name=e.target.value; updateFooter(); };
+        const isinInput = list.querySelector(`[data-na-isin="${pk.pid}"]`);
+        if(isinInput) isinInput.oninput = e=>{ pk.newAsset.isin=e.target.value.toUpperCase(); };
       }
       list.querySelector(`[data-currency="${pk.pid}"]`).onchange = e=>{
         pk.currency = e.target.value;
@@ -2825,7 +2840,7 @@ function renderContributeFlow(main, p){
       if(pk.assetId==='__new__'){
         const na = pk.newAsset;
         const newId = uid();
-        const newAsset = {id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0};
+        const newAsset = {id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0, isin: na.isin||''};
         p.assets.push(newAsset);
         p.prices[newId] = {price:eurPrice, asOf:new Date().toISOString(), currency:'EUR'};
         pk.finalAssetId = newId;
