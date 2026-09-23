@@ -2629,7 +2629,7 @@ function purchaseIsValid(pk){
   if(!pk.bucket || !pk.assetId || !pk.reasoning || !pk.date) return false;
   if(!((+pk.amountEUR||0)>0) || !((+pk.price||0)>0)) return false;
   if(pk.currency!=='EUR' && !((+pk.fxRate||0)>0)) return false;
-  if(pk.assetId==='__new__') return !!(pk.newAsset && pk.newAsset.name);
+  if(pk.assetId==='__new__') return !!(pk.newAsset && pk.newAsset.ticker);
   return true;
 }
 
@@ -2710,16 +2710,31 @@ function renderContributeFlow(main, p){
           </select>
         </div>
         <div data-newfields="${pk.pid}" class="${pk.assetId==='__new__'?'':'hidden'}">
+          ${pk.newAsset?.type==='Crypto' ? `
           <div class="field-row">
             <div class="field">
-              <label>${pk.newAsset?.type==='Crypto'?'Symbol (e.g. BTC)':'What\'s it called?'}</label>
-              <input type="text" data-na-name="${pk.pid}" value="${pk.newAsset?.name||''}" placeholder="${pk.newAsset?.type==='Crypto'?'e.g. BTC':'e.g. Vanguard FTSE All-World'}" />
+              <label>Symbol (e.g. BTC)</label>
+              <input type="text" data-na-ticker="${pk.pid}" value="${pk.newAsset?.ticker||''}" placeholder="e.g. BTC" style="text-transform:uppercase;" />
             </div>
             <div class="field"><label>Type</label>
               <select data-na-type="${pk.pid}">${ASSET_TYPES.map(t=>`<option ${pk.newAsset?.type===t?'selected':''}>${t}</option>`).join('')}</select>
             </div>
           </div>
-          ${pk.newAsset?.type==='Crypto'?'<div class="hint" style="margin:-4px 0 12px;">Use the standard symbol (BTC, ETH, etc.) so live pricing can find it automatically.</div>':`
+          <div class="hint" style="margin:-4px 0 12px;">Use the standard symbol (BTC, ETH, etc.) so live pricing can find it automatically.</div>
+          ` : `
+          <div class="field-row">
+            <div class="field">
+              <label>Ticker (used for live price lookups — get this right)</label>
+              <input type="text" data-na-ticker="${pk.pid}" value="${pk.newAsset?.ticker||''}" placeholder="e.g. VWCE" style="text-transform:uppercase;" />
+            </div>
+            <div class="field"><label>Type</label>
+              <select data-na-type="${pk.pid}">${ASSET_TYPES.map(t=>`<option ${pk.newAsset?.type===t?'selected':''}>${t}</option>`).join('')}</select>
+            </div>
+          </div>
+          <div class="field">
+            <label>Display name</label>
+            <input type="text" data-na-name="${pk.pid}" value="${pk.newAsset?.name||''}" placeholder="e.g. Vanguard FTSE All-World" />
+          </div>
           <div class="field">
             <label>ISIN (optional)</label>
             <input type="text" data-na-isin="${pk.pid}" value="${pk.newAsset?.isin||''}" placeholder="e.g. IE00BFMXXD54" maxlength="12" style="text-transform:uppercase;" />
@@ -2775,7 +2790,7 @@ function renderContributeFlow(main, p){
       sel.onchange = e=>{
         pk.assetId = e.target.value;
         if(pk.assetId==='__new__'){
-          if(!pk.newAsset) pk.newAsset={type:'ETF',name:'',isin:''};
+          if(!pk.newAsset) pk.newAsset={type:'ETF',name:'',ticker:'',isin:''};
         } else if(pk.assetId) {
           const known = currentPrice(p, pk.assetId);
           if(known) pk.price = known; // prefill with last known price, still editable
@@ -2784,7 +2799,14 @@ function renderContributeFlow(main, p){
       };
       if(pk.assetId==='__new__'){
         list.querySelector(`[data-na-type="${pk.pid}"]`).onchange = e=>{ pk.newAsset.type=e.target.value; renderList(); };
-        list.querySelector(`[data-na-name="${pk.pid}"]`).oninput = e=>{ pk.newAsset.name=e.target.value; updateFooter(); };
+        const tickerInput = list.querySelector(`[data-na-ticker="${pk.pid}"]`);
+        if(tickerInput) tickerInput.oninput = e=>{
+          pk.newAsset.ticker = e.target.value.toUpperCase();
+          if(pk.newAsset.type==='Crypto') pk.newAsset.name = pk.newAsset.ticker; // crypto has no separate display name
+          updateFooter();
+        };
+        const nameInput = list.querySelector(`[data-na-name="${pk.pid}"]`);
+        if(nameInput) nameInput.oninput = e=>{ pk.newAsset.name=e.target.value; updateFooter(); };
         const isinInput = list.querySelector(`[data-na-isin="${pk.pid}"]`);
         if(isinInput) isinInput.oninput = e=>{ pk.newAsset.isin=e.target.value.toUpperCase(); };
       }
@@ -2840,7 +2862,7 @@ function renderContributeFlow(main, p){
       if(pk.assetId==='__new__'){
         const na = pk.newAsset;
         const newId = uid();
-        const newAsset = {id:newId, ticker:na.name, name:na.name, bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0, isin: na.isin||''};
+        const newAsset = {id:newId, ticker:na.ticker, name:(na.name||na.ticker), bucket:pk.bucket, type:na.type, reyndersPct: na.type==='Bond'?50:0, isin: na.isin||''};
         p.assets.push(newAsset);
         p.prices[newId] = {price:eurPrice, asOf:new Date().toISOString(), currency:'EUR'};
         pk.finalAssetId = newId;
@@ -3167,6 +3189,7 @@ function generateReportRows(scope, months, startIdx, endIdx){
           'Account': profile.name,
           'Bucket': bucket?bucket.short:'',
           'Asset': asset?asset.name:'(unknown asset)',
+          'ISIN': asset?.isin||'',
           'Action': isSell?'Sell':(isDividend?'Dividend':'Buy'),
           'Amount (EUR)': isSell ? +ev.proceeds.toFixed(2) : +tx.amountEUR.toFixed(2),
           'Price per unit (EUR)': isSell ? tx.priceAtSell : (isDividend?'':tx.priceAtBuy),
